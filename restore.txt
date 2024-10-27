@@ -1,0 +1,9 @@
+// Escrow requirements
+
+1. List escrows (fetch all records from server temp storage)
+2. Create escrow page (create room & create)
+3. Join escrow page (join room by idas participant)
+4. Finalise transaction
+5. or
+6. Create dispute (Ai mediates the participants)
+7. In create dispute interface there should be a chat interface

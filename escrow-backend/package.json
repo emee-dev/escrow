@@ -1,0 +1,20 @@
+{
+  "name": "escrow-backend",
+  "type": "module",
+  "scripts": {
+    "dev": "dotenv -e ./.env.local -- tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.2",
+    "@mistralai/mistralai": "^1.1.0",
+    "convex": "^1.17.0",
+    "dotenv-cli": "^7.4.2",
+    "fetch-blob": "^4.0.0",
+    "hono": "^4.6.7",
+    "image2uri": "^2.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "tsx": "^4.7.1"
+  }
+}
