@@ -2,27 +2,15 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { CONSTANTS } from "@/consts";
-import { useSuperVizContext } from "@/context";
-import { useRealtime, useSuperviz } from "@superviz/react-sdk";
-import { useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -32,23 +20,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { api } from "convex_repo/_generated/api";
-import { v4 as uuidv4 } from "uuid";
-import { customAlphabet } from "nanoid";
-import { usePathname, useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useSuperVizContext } from "@/context";
 import { generateId } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { api } from "@packages/store/convex/_generated/api";
+import { useMutation, usePaginatedQuery } from "convex/react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 export default function LandingPage() {
   const context = useSuperVizContext();
