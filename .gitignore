@@ -50,7 +50,6 @@ next-env.d.ts
 # deps
 node_modules/
 dist/
-.next/
 
 # env
 .env
