@@ -12,6 +12,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -20,32 +29,23 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastAction } from "@/components/ui/toast";
+import { useSuperVizContext } from "@/context";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { useMutation, useQuery } from "convex/react";
-import {
-  AlertTriangle,
-  CircleCheck,
-  Copy,
-  Download,
-  Hourglass,
-  X,
-} from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useMutation } from "convex/react";
+import { AlertTriangle, Copy, Hourglass, X } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { useSuperVizContext } from "@/context";
+import { Id } from "@/convex/_generated/dataModel";
 
-type ViewTypes =
-  | "create_escrow"
-  | "accept_escrow"
-  | "escrow_timer"
-  | "payment_complete";
+type ViewTypes = "accept_escrow" | "start_timer" | "payment_complete";
 
-type EscrowStartedProps = {
+type StartEscrowProps = {
   initialTimeInSeconds?: number;
+  startEscrow: boolean;
   handleDispute: () => void;
 };
 
@@ -54,34 +54,62 @@ type WaitingRoomProps = {
   searchParams: { view: ViewTypes; roomId: string; groupId: string };
 };
 
+function constructUrl(
+  baseUrl: string,
+  params: Record<string, string | number>
+): string {
+  const url = new URL(baseUrl);
+
+  Object.keys(params).forEach((key) => {
+    url.searchParams.append(key, params[key].toString());
+  });
+
+  return url.toString();
+}
+
 export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
-  const [roomUrl, setRoomUrl] = useState<string | undefined>(undefined);
+  const router = useRouter();
+  const query = useSearchParams();
+  const context = useSuperVizContext();
+  const [startEscrow, setStartEscrow] = useState(false);
+  const [acceptRoomUrl, setAcceptRoomUrl] = useState<string | undefined>(
+    undefined
+  );
   const [view, setView] = useState<
-    "create_escrow" | "accept_escrow" | "escrow_timer" | "payment_complete"
-    // >("create_escrow");
-  >("accept_escrow");
+    "accept_escrow" | "start_timer" | "payment_complete"
+  >("start_timer");
 
-  // const getEscrow = useQuery(api.escrow);
+  const createDispute = useMutation(api.dispute.createDisputeRoom);
 
-  useEffect(() => {
-    if (searchParams.view) {
-      setView(searchParams.view);
+  const handleDispute = async () => {
+    try {
+      const roomId = query.get("roomId");
+      const groupId = query.get("groupId");
+
+      if (!roomId || !groupId) {
+        console.log("roomId and groupId are undefined.");
+        return;
+      }
+
+      await createDispute({
+        escrowRoomId: roomId as Id<"escrowRooms">,
+      });
+
+      router.push(`/dispute?roomId=${roomId}&groupId=${groupId}`);
+    } catch (error: any) {
+      console.error(error);
     }
-  }, [searchParams]);
-
-  const handleDispute = () => {
-    console.log("Dispute initiated");
-    // Add your dispute logic here
   };
 
   return (
     <main className="w-screen h-screen">
       <EscroNavbar />
-      <div className=" h-full flex items-center justify-center bg-gradient-to-r from-blue-100 to-purple-100">
-        {view === "create_escrow" && <CreateEscrow />}
-        {view === "payment_complete" && <PaymentConfirmed />}
-        {view === "escrow_timer" && (
-          <EscrowStarted
+      <div className=" h-full flex flex-col pt-10 items-center bg-gradient-to-r from-blue-100 to-purple-100">
+        {/* {view === "payment_complete" && <PaymentConfirmed />} */}
+        <div className="p-6">https://localhost:3000/escrow?</div>
+        {view === "start_timer" && (
+          <StartEscrow
+            startEscrow={startEscrow}
             initialTimeInSeconds={30}
             handleDispute={handleDispute}
           />
@@ -92,69 +120,68 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
   );
 }
 
-function PaymentConfirmed() {
-  return (
-    <Card className="flex flex-col items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-md space-y-6 text-center">
-        <div className="flex items-center justify-center">
-          <CircleCheck className="h-16 w-16 text-green-500" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Payment Confirmed
-          </h1>
-          <p className="text-muted-foreground">
-            Your payment has been successfully processed.
-          </p>
-        </div>
-        <Card>
-          <CardContent className="grid gap-4">
-            <div className="flex items-center justify-between">
-              <div className="text-muted-foreground">Amount</div>
-              <div className="font-medium">$499.99</div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="text-muted-foreground">Recipient</div>
-              <div className="font-medium">Acme Inc.</div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="text-muted-foreground">Transaction ID</div>
-              <div className="font-medium">12345678</div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="text-muted-foreground">Payment Method</div>
-              <div className="font-medium">Crypto (USDT)</div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full">
-              <Download className="h-4 w-4 mr-2" />
-              Download Receipt
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    </Card>
-  );
-}
+// function PaymentConfirmed() {
+//   return (
+//     <Card className="flex flex-col items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+//       <div className="mx-auto max-w-md space-y-6 text-center">
+//         <div className="flex items-center justify-center">
+//           <CircleCheck className="h-16 w-16 text-green-500" />
+//         </div>
+//         <div className="space-y-2">
+//           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+//             Payment Confirmed
+//           </h1>
+//           <p className="text-muted-foreground">
+//             Your payment has been successfully processed.
+//           </p>
+//         </div>
+//         <Card>
+//           <CardContent className="grid gap-4">
+//             <div className="flex items-center justify-between">
+//               <div className="text-muted-foreground">Amount</div>
+//               <div className="font-medium">$499.99</div>
+//             </div>
+//             <div className="flex items-center justify-between">
+//               <div className="text-muted-foreground">Recipient</div>
+//               <div className="font-medium">Acme Inc.</div>
+//             </div>
+//             <div className="flex items-center justify-between">
+//               <div className="text-muted-foreground">Transaction ID</div>
+//               <div className="font-medium">12345678</div>
+//             </div>
+//             <div className="flex items-center justify-between">
+//               <div className="text-muted-foreground">Payment Method</div>
+//               <div className="font-medium">Crypto (USDT)</div>
+//             </div>
+//           </CardContent>
+//           <CardFooter>
+//             <Button className="w-full">
+//               <Download className="h-4 w-4 mr-2" />
+//               Download Receipt
+//             </Button>
+//           </CardFooter>
+//         </Card>
+//       </div>
+//     </Card>
+//   );
+// }
 
-function EscrowStarted({
+function StartEscrow({
   handleDispute,
+  startEscrow,
   initialTimeInSeconds = 15,
-}: EscrowStartedProps) {
+}: StartEscrowProps) {
   const [timeLeft, setTimeLeft] = useState(initialTimeInSeconds);
   const [isTimerExpired, setIsTimerExpired] = useState(false);
 
-  // const updateEscrowStatus = useMutation(api.escrow);
-
   useEffect(() => {
-    if (timeLeft > 0) {
+    if (timeLeft > 0 && startEscrow) {
       const timerId = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timerId);
     } else {
       setIsTimerExpired(true);
     }
-  }, [timeLeft]);
+  }, [timeLeft, startEscrow]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -206,9 +233,9 @@ const createEscrowSchema = z.object({
   terms: z.string(),
 });
 
-function CreateEscrow() {
+function AcceptEscrow() {
   const context = useSuperVizContext();
-  const createEscrow = useMutation(api.escrow.createEscrowRoom);
+  const joinEscrowRoom = useMutation(api.escrow.joinEscrowRoom);
 
   const form = useForm<z.infer<typeof createEscrowSchema>>({
     resolver: zodResolver(createEscrowSchema),
@@ -221,88 +248,20 @@ function CreateEscrow() {
   });
 
   async function onSubmit(values: z.infer<typeof createEscrowSchema>) {
-    console.log(values);
-
-    if (!context.roomId || !context.group?.id || !context.visitorId) {
-      console.log("Context data was not set.");
-      return;
-    }
-
-    await createEscrow({
-      roomId: context.roomId,
-      groupId: context.group?.id,
-      payment_status: "not_accepted",
-      terms: values.terms,
-      creator: {
-        username: values.username,
-        visitorId: context.visitorId,
-      },
-      amount: values.amount_to_recieve,
-      asset: values.asset_to_recieve,
-    });
+    // if (!context.roomId || !context.group?.id || !context.visitorId) {
+    //   console.log("Context data was not set.");
+    //   return;
+    // }
+    // await joinEscrowRoom({
+    //   roomId: context.roomId,
+    //   groupId: context.group.id,
+    //   payment_status: "accepted",
+    //   reciever: {
+    //     username: values.username,
+    //     visitorId: context.visitorId,
+    //   },
+    // });
   }
-
-  return (
-    <Card className="w-full max-w-xl">
-      <CardHeader>
-        <CardTitle>Create New Escrow</CardTitle>
-        <CardDescription>
-          Set up an escrow to securely transfer funds or assets.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="user_name">Username</Label>
-              <Input id="user_name" type="text" placeholder="Your username" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount to recieve</Label>
-              <Input id="amount" type="number" placeholder="0.00" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="token-types">Asset to recieve</Label>
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Select token" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="usdt">Tether (USDT)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="terms">Additional Terms</Label>
-            <Textarea
-              id="terms"
-              rows={4}
-              placeholder="Enter any additional terms or conditions..."
-            />
-          </div>
-          <Button
-            className="ml-auto"
-            onClick={() => {
-              // redirect to escrow ui
-              // create room there and provide a share url button
-            }}
-          >
-            Create Escrow
-          </Button>
-        </form>
-      </CardContent>
-      {/* <CardFooter>
-        
-      </CardFooter> */}
-    </Card>
-  );
-}
-
-function AcceptEscrow() {
-  // const acceptEscrow = useMutation(api.escrow);
 
   return (
     <Card className="w-full max-w-xl">
@@ -312,7 +271,11 @@ function AcceptEscrow() {
           Someone is hoping to create an escrow with you.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent>
+        <form
+          className="grid gap-4"
+          onSubmit={form.handleSubmit(onSubmit)}
+        ></form>
         <div className="grid grid-cols-1 gap-4">
           <div className="space-y-2">
             <Label htmlFor="user_name">Username</Label>

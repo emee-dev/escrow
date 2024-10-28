@@ -32,56 +32,27 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { usePaginatedQuery, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { v4 as uuidv4 } from "uuid";
+import { customAlphabet } from "nanoid";
+import { usePathname, useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
-type User = {
-  user_id: number;
-  user_name: string;
-  user_wallet_balance: number;
-  asset_identifier: "USDT" | "BTC";
-};
+const alphabet =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-type EscrowCreator = Pick<
-  User,
-  "user_id" | "user_name" | "asset_identifier"
-> & {
-  asset_amount_to_recieve: number;
-  escrow_terms: string;
-};
-
-type EscrowPayer = Pick<User, "user_id" | "user_name" | "asset_identifier"> & {
-  asset_amount_to_pay: number;
-};
-
-const User1AccountRecord: User = {
-  user_id: 1,
-  user_name: "Emee",
-  user_wallet_balance: 100,
-  asset_identifier: "USDT",
-};
-
-const User2AccountRecord: User = {
-  user_id: 1,
-  user_name: "Sam",
-  user_wallet_balance: 10,
-  asset_identifier: "USDT",
-};
-
-const ESCROW_CREATOR: EscrowCreator = {
-  user_id: 2,
-  user_name: "Sam",
-  asset_amount_to_recieve: 10,
-  asset_identifier: "USDT",
-  escrow_terms: "I will not waste your time, pay me as soon as possible.",
-};
-
-const ESCROW_PAYER: EscrowPayer = {
-  user_id: 2,
-  user_name: "Samuel",
-  asset_amount_to_pay: 10,
-  asset_identifier: "USDT",
-};
+const generateId = customAlphabet(alphabet, 8); // 16 can be any length you want
 
 // useEffect(
 //   () => {
@@ -94,10 +65,6 @@ const ESCROW_PAYER: EscrowPayer = {
 
 export default function LandingPage() {
   const context = useSuperVizContext();
-
-  // useEffect(() => {
-  //   console.log("context.visitorId", context.visitorId);
-  // }, [context.visitorId]);
 
   const {
     results: escrows,
@@ -129,49 +96,17 @@ export default function LandingPage() {
     { initialNumItems: 5 }
   );
 
-  // const escrows = [
-  //   {
-  //     id: "ESC001",
-  //     title: "Project A Escrow",
-  //     status: "Active",
-  //     action: "View",
-  //   },
-  //   {
-  //     id: "ESC002",
-  //     title: "Service B Escrow",
-  //     status: "Completed",
-  //     action: "Close",
-  //   },
-  //   {
-  //     id: "ESC003",
-  //     title: "Transaction C Escrow",
-  //     status: "Pending",
-  //     action: "Review",
-  //   },
-  // ];
-
-  // const disputes = [
-  //   { id: "DSP001", status: "Open", goto: "Mediation", action: "Respond" },
-  //   { id: "DSP002", status: "Resolved", goto: "Closed", action: "View" },
-  //   {
-  //     id: "DSP003",
-  //     status: "Under Review",
-  //     goto: "Arbitration",
-  //     action: "Update",
-  //   },
-  // ];
-
   return (
     <div className="flex flex-col min-h-screen">
       <header className="border-b">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             <h1 className="text-xl font-semibold">Escrow Management System</h1>
-            <Button variant="default">Create New</Button>
+            <CreateRoomDialog />
           </div>
         </div>
       </header>
-      <main className="flex-grow container mx-auto px-4 py-8">
+      <main className="flex-grow container mx-auto mt-9 px-4 py-8">
         <Tabs defaultValue="escrows" className="w-full max-w-4xl mx-auto">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="escrows">Escrows</TabsTrigger>
@@ -239,4 +174,145 @@ export default function LandingPage() {
       </main>
     </div>
   );
+}
+
+const createRoomSchema = z.object({
+  username: z.string().min(2, {
+    message: "Username must be at least 2 characters.",
+  }),
+  amount_to_recieve: z.string(),
+  asset_to_recieve: z.string(),
+  terms: z.string(),
+});
+
+function CreateRoomDialog() {
+  const context = useSuperVizContext();
+  const router = useRouter();
+  const createEscrow = useMutation(api.escrow.createEscrowRoom);
+
+  const form = useForm<z.infer<typeof createRoomSchema>>({
+    resolver: zodResolver(createRoomSchema),
+    defaultValues: {
+      username: "",
+      amount_to_recieve: "0",
+      asset_to_recieve: "USDT",
+      terms: "",
+    },
+  });
+
+  async function onSubmit(values: z.infer<typeof createRoomSchema>) {
+    if (!context.visitorId) {
+      console.log("Could not find visitorId");
+      return;
+    }
+
+    const roomId = generateId();
+    const group = {
+      id: `group-${roomId}`,
+      name: `group-${values.username}`,
+    };
+
+    const participant = {
+      id: `participant-${context.visitorId}`,
+      name: `participant-${values.username}`,
+    };
+
+    context.setGroup(group);
+    context.setRoomId(roomId);
+    context.setParticipant(participant);
+
+    // await createEscrow({
+    //   roomId: roomId,
+    //   groupId: group.id,
+    //   payment_status: "not_accepted",
+    //   terms: values.terms,
+    //   creator: {
+    //     username: values.username,
+    //     visitorId: context.visitorId,
+    //   },
+    //   amount: values.amount_to_recieve,
+    //   asset: values.asset_to_recieve,
+    // });
+
+    // const roomUrl = constructUrl(`${location.origin}${pathname}`, {
+    //   view: "accept_escrow",
+    //   roomId: context?.roomId || "",
+    //   groupId: context.group?.id || "",
+    // });
+
+    router.push(`/room?roomId=${roomId}&groupId=${group.id}`);
+  }
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="default">Create Escrow</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Create New Escrow</DialogTitle>
+          <DialogDescription>
+            Set up an escrow to securely transfer funds or assets.
+          </DialogDescription>
+          <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="user_name">Username</Label>
+                <Input
+                  id="user_name"
+                  type="text"
+                  placeholder="Your username"
+                  {...form.register("username")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount to recieve</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  placeholder="0.00"
+                  {...form.register("amount_to_recieve")}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="token-types">Asset to recieve</Label>
+              <Input
+                id="amount"
+                type="text"
+                value="USDT"
+                placeholder="Tether (USDT)"
+                {...form.register("asset_to_recieve")}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="terms">Additional Terms</Label>
+              <Textarea
+                id="terms"
+                rows={2}
+                {...form.register("terms")}
+                placeholder="Enter any additional terms or conditions..."
+              />
+            </div>
+            <Button type="submit" className="ml-auto">
+              Create Escrow
+            </Button>
+          </form>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function constructUrl(
+  baseUrl: string,
+  params: Record<string, string | number>
+): string {
+  const url = new URL(baseUrl);
+
+  Object.keys(params).forEach((key) => {
+    url.searchParams.append(key, params[key].toString());
+  });
+
+  return url.toString();
 }

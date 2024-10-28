@@ -43,6 +43,7 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
 
         console.log("visitorId: ", visitorId);
         context.setVisitorId(visitorId);
+        
       }
     }
 
