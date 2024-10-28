@@ -4,72 +4,35 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { ToastAction } from "@/components/ui/toast";
 import { useSuperVizContext } from "@/context";
 import { api } from "@/convex/_generated/api";
+import useCopyToClipboard from "@/hooks/use-clipboard";
 import { useToast } from "@/hooks/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, Copy, Hourglass, X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Id } from "@/convex/_generated/dataModel";
-import useCopyToClipboard from "@/hooks/use-clipboard";
 
-type ViewTypes = "accept_escrow" | "start_timer" | "payment_complete";
-
-type StartEscrowProps = {
-  initialTimeInSeconds?: number;
+type EscrowTimerProps = {
+  roomId: string;
+  groupId: string;
   startEscrow: boolean;
-  handleDispute: () => void;
+  initialTimeInSeconds?: number;
 };
 
 type WaitingRoomProps = {
   params: {};
-  searchParams: { view: ViewTypes; roomId: string; groupId: string };
+  searchParams: { roomId: string; groupId: string };
 };
 
 export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
   const roomId = searchParams.roomId;
   const groupId = searchParams.groupId;
-
-  const router = useRouter();
-  const query = useSearchParams();
-
-  const context = useSuperVizContext();
   const [startEscrow, setStartEscrow] = useState(false);
-  const [acceptRoomUrl, setAcceptRoomUrl] = useState<string | undefined>(
-    undefined
-  );
-  const [view, setView] = useState<
-    "accept_escrow" | "start_timer" | "payment_complete"
-  >("start_timer");
 
   const getRoomStatus = useQuery(
     api.escrow.getRoomStatus,
@@ -84,38 +47,17 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
     }
   }, [getRoomStatus]);
 
-  const createDispute = useMutation(api.dispute.createDisputeRoom);
-
-  const handleCreateDispute = async () => {
-    try {
-      const roomId = query.get("roomId");
-      const groupId = query.get("groupId");
-
-      if (!roomId || !groupId) {
-        console.log("roomId and groupId are undefined.");
-        return;
-      }
-
-      await createDispute({
-        escrowRoomId: roomId as Id<"escrowRooms">,
-      });
-
-      router.push(`/dispute?roomId=${roomId}&groupId=${groupId}`);
-    } catch (error: any) {
-      console.error(error);
-    }
-  };
-
   return (
     <main className="w-screen h-screen">
       <EscroNavbar />
       <div className=" h-full flex flex-col pt-10 items-center bg-gradient-to-r from-blue-100 to-purple-100">
         {/* {view === "payment_complete" && <PaymentConfirmed />} */}
         {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
-          <StartEscrow
+          <EscrowTimer
+            roomId={roomId}
+            groupId={groupId}
             startEscrow={startEscrow}
-            initialTimeInSeconds={30}
-            handleDispute={handleCreateDispute}
+            initialTimeInSeconds={25}
           />
         )}
 
@@ -174,22 +116,42 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
 //   );
 // }
 
-function StartEscrow({
-  handleDispute,
-  startEscrow,
-  initialTimeInSeconds = 15,
-}: StartEscrowProps) {
-  const [timeLeft, setTimeLeft] = useState(initialTimeInSeconds);
+function EscrowTimer(props: EscrowTimerProps) {
+  const router = useRouter();
+  const context = useSuperVizContext();
+  const [timeLeft, setTimeLeft] = useState(25);
   const [isTimerExpired, setIsTimerExpired] = useState(false);
+  const createDispute = useMutation(api.dispute.createDisputeRoom);
+
+  const handleCreateDispute = async () => {
+    try {
+      if (!props.roomId || !props.groupId || !context.visitorId) {
+        console.log("roomId and groupId are undefined.");
+        return;
+      }
+
+      await createDispute({
+        roomId: props.roomId,
+        creator: context.visitorId,
+      });
+
+      // Only the creator can initiate disputes
+      router.push(
+        `/dispute?roomId=${props.roomId}&groupId=${props.groupId}&userType=${"creator"}`
+      );
+    } catch (error: any) {
+      console.error(error);
+    }
+  };
 
   useEffect(() => {
-    if (timeLeft > 0 && startEscrow) {
+    if (timeLeft > 0 && props.startEscrow) {
       const timerId = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timerId);
     } else {
       setIsTimerExpired(true);
     }
-  }, [timeLeft, startEscrow]);
+  }, [timeLeft, props]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -221,7 +183,7 @@ function StartEscrow({
       </CardContent>
       <CardFooter className="flex justify-center">
         <Button
-          onClick={handleDispute}
+          onClick={async () => handleCreateDispute()}
           disabled={!isTimerExpired}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
         >

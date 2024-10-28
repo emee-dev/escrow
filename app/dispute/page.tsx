@@ -15,12 +15,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSuperVizContext } from "@/context";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { encodeImageToBase64, prepareImagePrompt } from "@/lib/utils";
+import {
+  encodeImageToBase64,
+  generateId,
+  prepareImagePrompt,
+} from "@/lib/utils";
 import { useRealtime, useSuperviz } from "@superviz/react-sdk";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowDown, ArrowUp, Bot, Paperclip, RefreshCw, X } from "lucide-react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 type DisputePayload = {
@@ -44,17 +48,26 @@ export interface UploadedFile {
 
 type ComponentProps = {
   params: {};
-  searchParams: { roomId: string; groupId: string };
+  searchParams: {
+    roomId: string;
+    groupId: string;
+    userType: "creator" | "reciever";
+  };
 };
 
 export default function Component({ searchParams }: ComponentProps) {
   const roomId = searchParams.roomId;
   const groupId = searchParams.groupId;
+  const userType = searchParams.userType;
 
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const messages = useQuery(
     api.store.fetchRoomMessages,
-    roomId ? { escrowRoomId: roomId as Id<"escrowRooms"> } : "skip"
+    roomId && groupId ? { roomId, groupId } : "skip"
+  );
+  const roomInfo = useQuery(
+    api.escrow.getRoomStatus,
+    roomId && groupId ? { groupId, roomId } : "skip"
   );
 
   const superviz = useSuperviz();
@@ -62,8 +75,7 @@ export default function Component({ searchParams }: ComponentProps) {
   const isSubscribed = useRef(false);
   const formRef = useRef<FormEvent<HTMLFormElement>>(null);
   const setMessage = useMutation(api.store.storeMessage);
-  const { subscribe, isReady, publish, unsubscribe, fetchHistory } =
-    useRealtime("default");
+  const { subscribe, isReady, publish } = useRealtime("default");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   const sendMessageToChatBot = async (payload: SubscriptionPayload) => {
@@ -89,7 +101,7 @@ export default function Component({ searchParams }: ComponentProps) {
           newMessage: {
             role: "user",
             content: [data.content],
-            id: Date.now().toString(),
+            id: generateId(),
             uploadType: "image-prompt",
           },
         });
@@ -102,7 +114,7 @@ export default function Component({ searchParams }: ComponentProps) {
           roomId,
           newMessage: {
             role: "user",
-            id: Date.now().toString(),
+            id: generateId(),
             content: `#${context.participant.name}: ${userPrompt}`,
             uploadType: "text-prompt",
           },
@@ -112,6 +124,31 @@ export default function Component({ searchParams }: ComponentProps) {
       console.log("Sub: ", payload);
     }
   };
+
+  useEffect(() => {
+    if (roomInfo && roomInfo.data) {
+      const room = roomInfo.data;
+
+      const user = userType === "creator" ? room.creator : room.reciever!;
+
+      context.setRoomId(room.roomId);
+      context.setGroup({
+        id: `group-${room.roomId}`,
+        name: `group-${room.roomId}`,
+      });
+      context.setParticipant({
+        id: `participant-${user.visitorId}`,
+        name: `participant-${user.username}`,
+      });
+    }
+  }, [roomInfo]);
+
+  // To run after we set room details
+  useEffect(() => {
+    if (context.roomId && context.group) {
+      superviz.startRoom();
+    }
+  }, [context]);
 
   // Subscribe to dispute messages
   useEffect(() => {
@@ -127,6 +164,10 @@ export default function Component({ searchParams }: ComponentProps) {
     //   });
     // };
   }, [isReady]);
+
+  if (!roomId || !groupId) {
+    return notFound();
+  }
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>

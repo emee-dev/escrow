@@ -48,11 +48,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
-const alphabet =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-const generateId = customAlphabet(alphabet, 8); // 16 can be any length you want
+import { generateId } from "@/lib/utils";
 
 export default function LandingPage() {
   const context = useSuperVizContext();
@@ -201,7 +197,7 @@ function CreateRoomDialog() {
       const roomId = generateId();
       const group = {
         id: `group-${roomId}`,
-        name: `group-${values.username}`,
+        name: `group-${roomId}`,
       };
 
       const participant = {

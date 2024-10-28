@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 
 export const createEscrowRoom = mutation({
@@ -106,5 +106,54 @@ export const getRoomStatus = query({
       .first();
 
     return { message: "Room status", data: room };
+  },
+});
+
+// Updates room status
+export const refusePayment = mutation({
+  args: {
+    roomId: v.string(),
+    groupId: v.string(),
+  },
+  handler: async (ctx, { groupId, roomId }) => {
+    const room = await ctx.db
+      .query("escrowRooms")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("roomId"), roomId),
+          q.eq(q.field("groupId"), groupId)
+        )
+      )
+      .first();
+
+    if (!room) {
+      return null;
+    }
+
+    const data = await ctx.db.patch(room._id, { payment_status: "refused" });
+  },
+});
+
+export const disputePayment = internalMutation({
+  args: {
+    roomId: v.string(),
+    groupId: v.string(),
+  },
+  handler: async (ctx, { groupId, roomId }) => {
+    const room = await ctx.db
+      .query("escrowRooms")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("roomId"), roomId),
+          q.eq(q.field("groupId"), groupId)
+        )
+      )
+      .first();
+
+    if (!room) {
+      return null;
+    }
+
+    const data = await ctx.db.patch(room._id, { payment_status: "dispute" });
   },
 });

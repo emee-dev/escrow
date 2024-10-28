@@ -1,6 +1,7 @@
 import { UploadedFile } from "@/app/dispute/page";
 import { clsx, type ClassValue } from "clsx";
 import { Flame } from "lucide-react";
+import { customAlphabet } from "nanoid";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -36,6 +37,7 @@ type ImagePrompt = {
   };
   role: "user";
 };
+
 /**
  * Converts an array of File objects to the specified mixtral image structure.
  * @param files - An array of image files to convert to base64 and transform.
@@ -70,3 +72,8 @@ export const prepareImagePrompt = async (
     role: "user",
   };
 };
+
+const alphabet =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+export const generateId = customAlphabet(alphabet, 8); // 16 can be any length you want

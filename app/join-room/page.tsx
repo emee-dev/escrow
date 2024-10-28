@@ -11,30 +11,24 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ToastAction } from "@/components/ui/toast";
 import { useSuperVizContext } from "@/context";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
-import { AlertTriangle, Copy, Hourglass, X } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, Hourglass, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 type ViewTypes = "accept_escrow" | "start_timer" | "payment_complete";
 
-type StartEscrowProps = {
+type EscrowTimerProps = {
   startEscrow: boolean;
+  roomId: string;
+  groupId: string;
   initialTimeInSeconds?: number;
 };
 
@@ -67,7 +61,12 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
         {/* {view === "payment_complete" && <PaymentConfirmed />} */}
 
         {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
-          <StartEscrow startEscrow={startEscrow} initialTimeInSeconds={30} />
+          <StartEscrow
+            roomId={roomId}
+            groupId={groupId}
+            initialTimeInSeconds={25}
+            startEscrow={startEscrow}
+          />
         )}
 
         {getRoomStatus &&
@@ -88,13 +87,17 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
 
 function StartEscrow({
   startEscrow,
+  groupId,
+  roomId,
   initialTimeInSeconds = 15,
-}: StartEscrowProps) {
+}: EscrowTimerProps) {
   const [timeLeft, setTimeLeft] = useState(initialTimeInSeconds);
   const [isTimerExpired, setIsTimerExpired] = useState(false);
 
+  const refusePayment = useMutation(api.escrow.refusePayment);
+
   useEffect(() => {
-    if (timeLeft > 0 && startEscrow) {
+    if (timeLeft > 0) {
       const timerId = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timerId);
     } else {
@@ -136,8 +139,9 @@ function StartEscrow({
       </CardContent>
       <CardFooter className="flex justify-center">
         <Button
-          onClick={() => {}}
-          disabled={!isTimerExpired}
+          onClick={async () => {
+            refusePayment({ groupId, roomId });
+          }}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
         >
           Refuse to pay

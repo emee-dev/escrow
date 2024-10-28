@@ -19,7 +19,8 @@ export default defineSchema(
       payment_status: v.union(
         v.literal("pending"),
         v.literal("default"),
-        v.literal("timeout")
+        v.literal("refused"),
+        v.literal("dispute")
       ),
       terms: v.string(),
       amount: v.string(),

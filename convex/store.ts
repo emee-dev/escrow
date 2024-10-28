@@ -66,8 +66,6 @@ export const storeMessage = mutation({
 
     if (!data) {
       const createRecord = await ctx.db.insert("store", {
-        // roomId,
-        // groupId,
         disputeRoomId: disputeRoom._id,
         messages: [
           {
@@ -100,7 +98,6 @@ export const storeMessage = mutation({
       await ctx.scheduler.runAfter(0, internal.store.webhookCallback, {
         roomId,
         groupId,
-        escrowRoomId: escrowRoom._id,
       });
     }
 
@@ -113,15 +110,29 @@ export const storeMessage = mutation({
 
 export const fetchRoomMessages = query({
   args: {
-    // roomId: v.string(),
-    // groupId: v.string(),
-    escrowRoomId: v.id("escrowRooms"),
+    roomId: v.string(),
+    groupId: v.string(),
+    // escrowRoomId: v.id("escrowRooms"),
   },
-  handler: async (ctx, { escrowRoomId /* roomId, groupId */ }) => {
+  handler: async (ctx, { roomId, groupId }) => {
+    const escrowRoom = await ctx.db
+      .query("escrowRooms")
+      .filter((q) =>
+        q.add(
+          q.eq(q.field("roomId"), roomId),
+          q.eq(q.field("groupId"), groupId)
+        )
+      )
+      .first();
+
+    if (!escrowRoom) {
+      return { message: "Could not find escrow room.", data: [] };
+    }
+
     const disputeRoom = await ctx.db
       .query("disputeRooms")
-      .filter((q) => q.eq(q.field("escrowRoomId"), escrowRoomId))
-      .unique();
+      .filter((q) => q.eq(q.field("escrowRoomId"), escrowRoom._id))
+      .first();
 
     if (!disputeRoom) {
       return { message: "Could not find dispute room.", data: [] };
@@ -130,12 +141,12 @@ export const fetchRoomMessages = query({
     const record = await ctx.db
       .query("store")
       .filter((q) => q.eq(q.field("disputeRoomId"), disputeRoom._id))
-      .unique();
+      .first();
 
     if (!record) {
       return {
         data: [],
-        message: "Data was not found.",
+        message: "Was unable to find any message.",
       };
     }
 
@@ -152,14 +163,10 @@ export const webhookCallback = internalAction({
   args: {
     roomId: v.string(),
     groupId: v.string(),
-    escrowRoomId: v.string(),
   },
-  handler: async (_, { groupId, roomId, escrowRoomId }) => {
+  handler: async (_, { groupId, roomId }) => {
     try {
-      // const req = await fetch(`${BACKEND_AI_WEBHOOK}/sse/${roomId}/${groupId}`);
-      const req = await fetch(
-        `${BACKEND_AI_WEBHOOK}/sse/${roomId}/${groupId}/${escrowRoomId}`
-      );
+      const req = await fetch(`${BACKEND_AI_WEBHOOK}/sse/${roomId}/${groupId}`);
 
       if (!req.ok) {
         console.log("Bad Request: ", await req.text());
