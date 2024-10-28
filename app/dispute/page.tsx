@@ -2,9 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Message, useChat } from "ai/react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useMutation, useQuery } from "convex/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,56 +11,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useActions, useAIState, useUIState } from "ai/rsc";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSuperVizContext } from "@/context";
-import { useRealtime, useSuperviz } from "@superviz/react-sdk";
-import {
-  ArrowDown,
-  ArrowUp,
-  Bot,
-  File,
-  Paperclip,
-  RefreshCw,
-  Smile,
-  X,
-} from "lucide-react";
-import Link from "next/link";
-import { FormEvent, RefAttributes, useEffect, useRef, useState } from "react";
-import { JSONValue } from "ai";
-import { AI } from "../ai";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { encodeImageToBase64, prepareImagePrompt } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-
-// Algo
-/**
- * 1. Capture user message, append user is eg #user1 or #user2
- * 2. Send that message to backend chatbot, then store it in realtime database
- * 3. After chatbot responds append the reponse to realtime database
- * 4. Continue this process. The goal is to maintain an external chat session state.
- * 5. When user2 joins, load by room id.
- * 6. User2 messages are also appended to the realtime database.
- *
- */
-
-export const dynamic = "force-dynamic";
-
-const Participant = {
-  id: "participant1",
-  name: "emee", // username of escrowee
-};
-const Participant2 = {
-  id: "participant2",
-  name: "samuel", // username of escrowee
-};
-
-const Group = {
-  id: "dispute1",
-  name: "samuel-and-emee", // from the usernames of the escrowee(s)
-};
-
-const Room = "Room";
+import { useRealtime, useSuperviz } from "@superviz/react-sdk";
+import { useMutation, useQuery } from "convex/react";
+import { ArrowDown, ArrowUp, Bot, Paperclip, RefreshCw, X } from "lucide-react";
+import Link from "next/link";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 type DisputePayload = {
   message: string;
@@ -83,81 +42,29 @@ export interface UploadedFile {
   base64: string;
 }
 
-export default function Component() {
-  const formRef = useRef<FormEvent<HTMLFormElement>>(null);
-  const roomId = "";
-  const groupId = "";
+type ComponentProps = {
+  params: {};
+  searchParams: { roomId: string; groupId: string };
+};
+
+export default function Component({ searchParams }: ComponentProps) {
+  const roomId = searchParams.roomId;
+  const groupId = searchParams.groupId;
 
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const messages = useQuery(
     api.store.fetchRoomMessages,
-    groupId && roomId ? { groupId, roomId } : "skip"
+    roomId ? { escrowRoomId: roomId as Id<"escrowRooms"> } : "skip"
   );
 
-  const setMessage = useMutation(api.store.storeMessage);
-  // const {
-  //   input,
-  //   isLoading,
-  //   messages,
-  //   append,
-  //   reload,
-  //   setMessages,
-  //   handleInputChange,
-  //   handleSubmit,
-  //   addToolResult,
-  //   setData,
-  //   stop,
-  // } = useChat({
-  //   // body: { participant: "participant1" },
-  //   // maxSteps: 5,
-  //   // // run client-side tools that are automatically executed:
-  //   // async onToolCall({ toolCall }) {
-  //   //   if (toolCall.toolName === "getLocation") {
-  //   //     const cities = [
-  //   //       "New York",
-  //   //       "Los Angeles",
-  //   //       "Chicago",
-  //   //       "San Francisco",
-  //   //     ];
-  //   //     return cities[Math.floor(Math.random() * cities.length)];
-  //   //   }
-  //   // },
-  // });
-
-  const isSubscribed = useRef(false);
   const superviz = useSuperviz();
+  const context = useSuperVizContext();
+  const isSubscribed = useRef(false);
+  const formRef = useRef<FormEvent<HTMLFormElement>>(null);
+  const setMessage = useMutation(api.store.storeMessage);
   const { subscribe, isReady, publish, unsubscribe, fetchHistory } =
     useRealtime("default");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-
-  const context = useSuperVizContext();
-
-  useEffect(() => {
-    // if (files && files.length > 0) {
-    //   files.map(async (item) => {
-    //     console.log("Base64 image: ", await encodeImageToBase64(item));
-    //   });
-    // }
-    console.log("uploadedFiles", uploadedFiles);
-  }, [uploadedFiles]);
-
-  // const sendMessageToChatBot = async (payload: SubscriptionPayload) => {
-  //   if (!context.participant) {
-  //     console.log("User is not defined.");
-  //     return;
-  //   }
-
-  //   console.log("Sub: ", payload);
-
-  //   // Make sure the current user's message is sent, if not it will also send the
-  //   // other persons subscribed message. It helps avoid duplicating messages.
-  //   if (payload.data.participantId === context.participant.id) {
-  //     append({
-  //       role: "user",
-  //       content: `#${context.participant.name}: ${payload.data.message}`,
-  //     });
-  //   }
-  // };
 
   const sendMessageToChatBot = async (payload: SubscriptionPayload) => {
     if (!context.participant) {
@@ -171,36 +78,36 @@ export default function Component() {
       const userPrompt = payload.data.message;
 
       // Upload images with detail prompt
-      // if (uploadedFiles.length > 0) {
-      //   const prompt = `#${context.participant.name}: ${userPrompt}`;
+      if (uploadedFiles.length > 0) {
+        const prompt = `#${context.participant.name}: ${userPrompt}`;
 
-      //   const data = await prepareImagePrompt(prompt, uploadedFiles);
+        const data = await prepareImagePrompt(prompt, uploadedFiles);
 
-      //   const newData = await setMessage({
-      //     groupId,
-      //     roomId,
-      //     newMessage: {
-      //       role: "user",
-      //       content: [data.content],
-      //       id: Date.now().toString(),
-      //       uploadType: "image-prompt",
-      //     },
-      //   });
+        const newData = await setMessage({
+          groupId,
+          roomId,
+          newMessage: {
+            role: "user",
+            content: [data.content],
+            id: Date.now().toString(),
+            uploadType: "image-prompt",
+          },
+        });
 
-      //   // reset the file list
-      //   setUploadedFiles([]);
-      // } else {
-      //   const newData = await setMessage({
-      //     groupId,
-      //     roomId,
-      //     newMessage: {
-      //       role: "user",
-      //       id: Date.now().toString(),
-      //       content: `#${context.participant.name}: ${userPrompt}`,
-      //       uploadType: "text-prompt",
-      //     },
-      //   });
-      // }
+        // reset the file list
+        setUploadedFiles([]);
+      } else {
+        const newData = await setMessage({
+          groupId,
+          roomId,
+          newMessage: {
+            role: "user",
+            id: Date.now().toString(),
+            content: `#${context.participant.name}: ${userPrompt}`,
+            uploadType: "text-prompt",
+          },
+        });
+      }
 
       console.log("Sub: ", payload);
     }
@@ -235,16 +142,6 @@ export default function Component() {
       setUploadedFiles((prevFiles) => [...prevFiles, ...newFiles]);
     }
   };
-
-  // useEffect(
-  //   () => {
-  //     context.setGroup(Group);
-  //     context.setRoomId(Room);
-  //     context.setParticipant(Participant);
-  //   },
-  //   /* eslint-disable react-hooks/exhaustive-deps */
-  //   []
-  // );
 
   return (
     <div className="grid h-screen w-full grid-cols-[300px_1fr] bg-background">
@@ -288,35 +185,6 @@ export default function Component() {
       <div className="flex flex-col">
         <ChatHeader />
         <div className="flex-1 overflow-auto p-4 sm:p-6">
-          <Button
-            onClick={() => {
-              context.setGroup(Group);
-              context.setRoomId(Room);
-              context.setParticipant(Participant);
-              console.log("Set user1");
-            }}
-          >
-            Set User1
-          </Button>
-          <Button
-            onClick={() => {
-              context.setGroup(Group);
-              context.setRoomId(Room);
-              context.setParticipant(Participant2);
-              console.log("Set user2");
-            }}
-          >
-            Set User2
-          </Button>
-          <Button
-            onClick={() => {
-              superviz.startRoom();
-              console.log("Joined room");
-            }}
-          >
-            Start Room
-          </Button>
-
           <div className="flex items-center">
             {uploadedFiles.map((file, index) => (
               <div key={index} style={{ margin: "8px", textAlign: "center" }}>
@@ -475,7 +343,7 @@ const ChatHeader = () => (
         </Avatar>
         <div>
           <div className="font-medium">John Doe</div>
-          <div className="text-sm text-muted-foreground">Process..</div>
+          {/* <div className="text-sm text-muted-foreground">Process..</div> */}
         </div>
       </div>
     </div>
@@ -488,67 +356,34 @@ const ChatHeader = () => (
   </div>
 );
 
-// const ChatBody = ({
-//   messages,
-// }: {
-//   messages: {
-//     role: "user" | "assistant";
-//     content: string;
-//     prefix?: boolean;
-//   }[] /* messages: Message[] */;
-// }) => {
-//   return (
-//     <div className="grid gap-4">
-//       {messages.map((message) => {
-//         if (message.role === "assistant") {
-//           return (
-//             <LeftAlignMessage key={message.id} content={message.content} />
-//           );
-//         }
-
-//         if (message.role === "user") {
-//           return (
-//             <RightAlignMessage key={message.id} content={message.content} />
-//           );
-//         }
-//       })}
-
-//       {/* <div className="flex items-start gap-4">
-//         <Avatar className="w-10 h-10 border">
-//           <AvatarImage src="/placeholder-user.jpg" alt="User" />
-//           <AvatarFallback>JD</AvatarFallback>
-//         </Avatar>
-//         <div className="grid gap-1 rounded-lg bg-muted p-3">
-//           <div className="font-medium">John Doe</div>
-//           <div className="text-sm leading-relaxed">
-//             Sounds good! Let me know if you have any questions or need any
-//             clarification.
-//           </div>
-//         </div>
-//       </div> */}
-//     </div>
-//   );
-// };
-const ChatBody = ({
-  messages,
-}: {
+type ChatBodyProps = {
   messages: {
     id: string;
-    content: string;
+    content:
+      | string
+      | {
+          type: "image_url";
+          imageUrl: { url: string; detail: string | null };
+        }[];
     prefix?: boolean;
-    role: "user" | "assistant";
-  }[] /* messages: Message[] */;
-}) => {
+    role: "user" | "assistant" | "system";
+  }[];
+};
+
+const ChatBody = ({ messages }: ChatBodyProps) => {
   return (
     <div className="grid gap-4">
       {messages.map((message) => {
-        if (message.role === "assistant") {
+        if (
+          message.role === "assistant" &&
+          typeof message.content === "string"
+        ) {
           return (
             <LeftAlignMessage key={message.id} content={message.content} />
           );
         }
 
-        if (message.role === "user") {
+        if (message.role === "user" && typeof message.content === "string") {
           return (
             <RightAlignMessage key={message.id} content={message.content} />
           );
@@ -581,11 +416,7 @@ const LeftAlignMessage = ({ content }: { content: string }) => {
       </Avatar>
       <div className="grid gap-1 rounded-lg bg-muted p-3">
         <div className="font-medium">John Doe</div>
-        <div className="text-sm leading-relaxed">
-          {/* Hey there! I wanted to share a document with you. Let me know what you
-          think. */}
-          {content}
-        </div>
+        <div className="text-sm leading-relaxed">{content}</div>
         {/* {upload && (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon">
@@ -607,11 +438,7 @@ const RightAlignMessage = ({ content }: { content: string }) => {
     <div className="flex items-start gap-4 justify-end">
       <div className="grid gap-1 rounded-lg bg-primary p-3 text-primary-foreground">
         <div className="font-medium">You</div>
-        <div className="text-sm leading-relaxed">
-          {/* Great, thanks for sharing! I'll take a look at the document and get
-          back to you. */}
-          {content}
-        </div>
+        <div className="text-sm leading-relaxed">{content}</div>
       </div>
       <Avatar className="w-10 h-10 border">
         <AvatarImage src="/placeholder-user.jpg" alt="User" />

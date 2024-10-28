@@ -118,18 +118,6 @@ export const fetchRoomMessages = query({
     escrowRoomId: v.id("escrowRooms"),
   },
   handler: async (ctx, { escrowRoomId /* roomId, groupId */ }) => {
-    // const record = await ctx.db
-    //   .query("store")
-    //   .filter((q) => q.eq(q.field("roomId"), roomId))
-    //   .unique();
-
-    // if (!record) {
-    //   return {
-    //     data: [],
-    //     message: "Data was not found.",
-    //   };
-    // }
-
     const disputeRoom = await ctx.db
       .query("disputeRooms")
       .filter((q) => q.eq(q.field("escrowRoomId"), escrowRoomId))
