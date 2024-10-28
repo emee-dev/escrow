@@ -24,7 +24,7 @@ import { useSuperVizContext } from "@/context";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, Copy, Hourglass, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -43,36 +43,22 @@ type WaitingRoomProps = {
   searchParams: { view: ViewTypes; roomId: string; groupId: string };
 };
 
-function constructUrl(
-  baseUrl: string,
-  params: Record<string, string | number>
-): string {
-  const url = new URL(baseUrl);
-
-  Object.keys(params).forEach((key) => {
-    url.searchParams.append(key, params[key].toString());
-  });
-
-  return url.toString();
-}
-
 export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
   const router = useRouter();
-  const query = useSearchParams();
+  const roomId = searchParams.roomId;
+  const groupId = searchParams.groupId;
+
   const context = useSuperVizContext();
   const [startEscrow, setStartEscrow] = useState(false);
-  const [acceptRoomUrl, setAcceptRoomUrl] = useState<string | undefined>(
-    undefined
+
+  const getRoomStatus = useQuery(
+    api.escrow.getRoomStatus,
+    groupId && roomId ? { groupId, roomId } : "skip"
   );
 
-  const joinEscrowRoom = useMutation(api.escrow.joinEscrowRoom);
-
-  //   const room  = useQuery(api.escrow.roomStatus)
-  //   joinEscrowRoom({})
-
-  const [view, setView] = useState<"accept_escrow" | "start_timer">(
-    "start_timer"
-  );
+  //   const [view, setView] = useState<"accept_escrow" | "start_timer">(
+  //     "start_timer"
+  //   );
 
   return (
     <main className="w-screen h-screen">
@@ -80,10 +66,21 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
       <div className=" h-full flex flex-col pt-10 items-center bg-gradient-to-r from-blue-100 to-purple-100">
         {/* {view === "payment_complete" && <PaymentConfirmed />} */}
 
-        {view === "start_timer" && (
+        {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
           <StartEscrow startEscrow={startEscrow} initialTimeInSeconds={30} />
         )}
-        {view === "accept_escrow" && <AcceptEscrow />}
+
+        {getRoomStatus &&
+          getRoomStatus.data &&
+          getRoomStatus.data.payment_status === "default" && (
+            <AcceptEscrow
+              amount={getRoomStatus.data.amount}
+              asset={getRoomStatus.data.asset}
+              terms={getRoomStatus.data.terms}
+              roomId={roomId}
+              groupId={groupId}
+            />
+          )}
       </div>
     </main>
   );
@@ -101,7 +98,11 @@ function StartEscrow({
       const timerId = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timerId);
     } else {
-      setIsTimerExpired(true);
+      if (startEscrow) {
+        setIsTimerExpired(false);
+      } else {
+        setIsTimerExpired(true);
+      }
     }
   }, [timeLeft, startEscrow]);
 
@@ -122,7 +123,7 @@ function StartEscrow({
       </CardHeader>
       <CardContent className="text-center">
         <Hourglass className="w-16 h-16 mx-auto mb-4 text-blue-500 animate-pulse" />
-        <p className="text-xl mb-4">Hold on, waiting for user to pay</p>
+        <p className="text-xl mb-4">Please pay within the stipulated time</p>
         <div className="text-4xl font-bold mb-4" aria-live="polite">
           {formatTime(timeLeft)}
         </div>
@@ -135,32 +136,38 @@ function StartEscrow({
       </CardContent>
       <CardFooter className="flex justify-center">
         <Button
-          onClick={handleDispute}
+          onClick={() => {}}
           disabled={!isTimerExpired}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
         >
-          Initiate Dispute
+          Refuse to pay
         </Button>
       </CardFooter>
     </Card>
   );
 }
 
-const createEscrowSchema = z.object({
+const joinEscrowRoomSchema = z.object({
   username: z.string().min(2, {
-    message: "Username must be at least 2 characters.",
+    message: "Username is short.",
   }),
   amount_to_recieve: z.string(),
   asset_to_recieve: z.string(),
   terms: z.string(),
 });
 
-function AcceptEscrow() {
+function AcceptEscrow(props: {
+  amount: string;
+  asset: string;
+  terms: string;
+  roomId: string;
+  groupId: string;
+}) {
   const context = useSuperVizContext();
   const joinEscrowRoom = useMutation(api.escrow.joinEscrowRoom);
 
-  const form = useForm<z.infer<typeof createEscrowSchema>>({
-    resolver: zodResolver(createEscrowSchema),
+  const form = useForm<z.infer<typeof joinEscrowRoomSchema>>({
+    resolver: zodResolver(joinEscrowRoomSchema),
     defaultValues: {
       username: "",
       amount_to_recieve: "0",
@@ -169,20 +176,29 @@ function AcceptEscrow() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof createEscrowSchema>) {
-    // if (!context.roomId || !context.group?.id || !context.visitorId) {
-    //   console.log("Context data was not set.");
-    //   return;
-    // }
-    // await joinEscrowRoom({
-    //   roomId: context.roomId,
-    //   groupId: context.group.id,
-    //   payment_status: "accepted",
-    //   reciever: {
-    //     username: values.username,
-    //     visitorId: context.visitorId,
-    //   },
-    // });
+  useEffect(() => {
+    if (props) {
+      form.setValue("terms", props.terms);
+      form.setValue("asset_to_recieve", props.asset);
+      form.setValue("amount_to_recieve", props.amount);
+    }
+  }, [props]);
+
+  async function onSubmit(values: z.infer<typeof joinEscrowRoomSchema>) {
+    if (!props.roomId || !props.groupId || !context.visitorId) {
+      console.log("RoomId, GroupId and VisitorId is undefined.");
+      return;
+    }
+
+    await joinEscrowRoom({
+      roomId: props.roomId,
+      groupId: props.groupId,
+      payment_status: "pending",
+      reciever: {
+        username: values.username,
+        visitorId: context.visitorId,
+      },
+    });
   }
 
   return (
@@ -194,84 +210,64 @@ function AcceptEscrow() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form
-          className="grid gap-4"
-          onSubmit={form.handleSubmit(onSubmit)}
-        ></form>
-        <div className="grid grid-cols-1 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="user_name">Username</Label>
-            <Input id="user_name" type="text" placeholder="Your username" />
+        <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="user_name">Username</Label>
+              <Input
+                id="user_name"
+                type="text"
+                placeholder="Your username"
+                {...form.register("username")}
+              />
+
+              {form.formState.errors.username && (
+                <span className="p-4 text-red-400 text-sm tracking-tighter">
+                  {form.formState.errors.username.message}
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount to send</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0.00"
+                {...form.register("amount_to_recieve")}
+                disabled
+              />
+            </div>
           </div>
-        </div>
-        <div className="grid grid-cols-1 gap-4">
+
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount to send</Label>
-            <Input id="amount" type="number" placeholder="0.00" disabled />
+            <Label htmlFor="token-types">Asset to recieve</Label>
+            <Input
+              id="asset"
+              type="text"
+              placeholder="Tether (USDT)"
+              disabled
+              {...form.register("asset_to_recieve")}
+            />
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="token-types">Asset to recieve</Label>
-          <Select disabled>
-            <SelectTrigger>
-              <SelectValue placeholder="Select token" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="usdt">Tether (USDT)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="terms">Additional Terms</Label>
-          <Textarea
-            rows={4}
-            id="terms"
-            disabled
-            placeholder="Enter any additional terms or conditions..."
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="terms">Additional Terms</Label>
+            <Textarea
+              id="terms"
+              rows={2}
+              {...form.register("terms")}
+              disabled
+              placeholder="Enter any additional terms or conditions..."
+            />
+          </div>
+          <Button className="ml-auto">Accept Escrow and Terms</Button>
+        </form>
       </CardContent>
-      <CardFooter>
-        <Button
-          className="ml-auto"
-          onClick={() => {
-            // redirect to escrow ui
-            // create room there and provide a share url button
-          }}
-        >
-          Accept Escrow and Terms
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
 
 function EscroNavbar() {
   const { toast } = useToast();
-  const [isCopied, setIsCopied] = useState(false);
-
-  const copyUrlToClipboard = useCallback(() => {
-    navigator.clipboard
-      .writeText(window.location.href)
-      .then(() => {
-        setIsCopied(true);
-        toast({
-          title: "URL Copied!",
-          description:
-            "The current page URL has been copied to your clipboard.",
-          action: <ToastAction altText="Dismiss">Dismiss</ToastAction>,
-        });
-        setTimeout(() => setIsCopied(false), 2000);
-      })
-      .catch((err) => {
-        console.error("Failed to copy URL: ", err);
-        toast({
-          title: "Copy failed",
-          description: "Unable to copy the URL. Please try again.",
-          variant: "destructive",
-        });
-      });
-  }, [toast]);
 
   const handleClose = useCallback(() => {
     // Implement your close logic here
@@ -289,16 +285,6 @@ function EscroNavbar() {
 
         <div className="flex items-center space-x-2 md:justify-end">
           <nav className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className=""
-              onClick={copyUrlToClipboard}
-            >
-              <span className="sr-only">Copy URL</span>
-              <Copy className="h-4 w-4" />
-              <span className="">Copy URL</span>
-            </Button>
             <Button
               variant="outline"
               size="sm"

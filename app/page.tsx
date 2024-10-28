@@ -54,15 +54,6 @@ const alphabet =
 
 const generateId = customAlphabet(alphabet, 8); // 16 can be any length you want
 
-// useEffect(
-//   () => {
-//     context.setRoomId("roomId");
-//     subscribe("text", (data: any) => console.log("Received: ", data));
-//   },
-//   /* eslint-disable react-hooks/exhaustive-deps */
-//   [isReady]
-// );
-
 export default function LandingPage() {
   const context = useSuperVizContext();
 
@@ -194,53 +185,51 @@ function CreateRoomDialog() {
     resolver: zodResolver(createRoomSchema),
     defaultValues: {
       username: "",
-      amount_to_recieve: "0",
+      amount_to_recieve: "10",
       asset_to_recieve: "USDT",
       terms: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof createRoomSchema>) {
-    if (!context.visitorId) {
-      console.log("Could not find visitorId");
-      return;
+    try {
+      if (!context.visitorId) {
+        console.log("Could not find visitorId");
+        return;
+      }
+
+      const roomId = generateId();
+      const group = {
+        id: `group-${roomId}`,
+        name: `group-${values.username}`,
+      };
+
+      const participant = {
+        id: `participant-${context.visitorId}`,
+        name: `participant-${values.username}`,
+      };
+
+      context.setGroup(group);
+      context.setRoomId(roomId);
+      context.setParticipant(participant);
+
+      await createEscrow({
+        roomId: roomId,
+        groupId: group.id,
+        payment_status: "default",
+        terms: values.terms,
+        creator: {
+          username: values.username,
+          visitorId: context.visitorId,
+        },
+        amount: values.amount_to_recieve,
+        asset: values.asset_to_recieve,
+      });
+
+      router.push(`/room?roomId=${roomId}&groupId=${group.id}`);
+    } catch (error: any) {
+      console.error("Failed to create room: ", error);
     }
-
-    const roomId = generateId();
-    const group = {
-      id: `group-${roomId}`,
-      name: `group-${values.username}`,
-    };
-
-    const participant = {
-      id: `participant-${context.visitorId}`,
-      name: `participant-${values.username}`,
-    };
-
-    context.setGroup(group);
-    context.setRoomId(roomId);
-    context.setParticipant(participant);
-
-    // await createEscrow({
-    //   roomId: roomId,
-    //   groupId: group.id,
-    //   payment_status: "not_accepted",
-    //   terms: values.terms,
-    //   creator: {
-    //     username: values.username,
-    //     visitorId: context.visitorId,
-    //   },
-    //   amount: values.amount_to_recieve,
-    //   asset: values.asset_to_recieve,
-    // });
-
-    // const roomUrl = constructUrl(`${location.origin}${pathname}`, {
-    //   view: "accept_escrow",
-    //   roomId: context?.roomId || "",
-    //   groupId: context.group?.id || "",
-    // });
-
-    router.push(`/room?roomId=${roomId}&groupId=${group.id}`);
   }
 
   return (
@@ -278,7 +267,7 @@ function CreateRoomDialog() {
             <div className="space-y-2">
               <Label htmlFor="token-types">Asset to recieve</Label>
               <Input
-                id="amount"
+                id="asset"
                 type="text"
                 value="USDT"
                 placeholder="Tether (USDT)"
@@ -302,17 +291,4 @@ function CreateRoomDialog() {
       </DialogContent>
     </Dialog>
   );
-}
-
-function constructUrl(
-  baseUrl: string,
-  params: Record<string, string | number>
-): string {
-  const url = new URL(baseUrl);
-
-  Object.keys(params).forEach((key) => {
-    url.searchParams.append(key, params[key].toString());
-  });
-
-  return url.toString();
 }

@@ -6,7 +6,7 @@ export const createEscrowRoom = mutation({
   args: {
     roomId: v.string(),
     groupId: v.string(),
-    payment_status: v.literal("not_accepted"),
+    payment_status: v.literal("default"),
     terms: v.string(),
     amount: v.string(),
     asset: v.string(),
@@ -43,9 +43,9 @@ export const joinEscrowRoom = mutation({
       username: v.string(),
       visitorId: v.number(),
     }),
-    payment_status: v.literal("accepted"),
+    payment_status: v.literal("pending"),
   },
-  handler: async (ctx, { roomId, groupId, reciever }) => {
+  handler: async (ctx, { roomId, groupId, reciever, payment_status }) => {
     const record = await ctx.db
       .query("escrowRooms")
       .filter((q) =>
@@ -62,6 +62,7 @@ export const joinEscrowRoom = mutation({
 
     await ctx.db.patch(record._id, {
       reciever,
+      payment_status,
     });
   },
 });
@@ -85,5 +86,25 @@ export const listEscrowRooms = query({
       .paginate(paginationOpts);
 
     return disputes;
+  },
+});
+
+export const getRoomStatus = query({
+  args: {
+    roomId: v.string(),
+    groupId: v.string(),
+  },
+  handler: async (ctx, { roomId, groupId }) => {
+    const room = await ctx.db
+      .query("escrowRooms")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("roomId"), roomId),
+          q.eq(q.field("groupId"), groupId)
+        )
+      )
+      .first();
+
+    return { message: "Room status", data: room };
   },
 });

@@ -17,10 +17,9 @@ export default defineSchema(
       roomId: v.string(),
       groupId: v.string(),
       payment_status: v.union(
-        v.literal("not_accepted"),
-        v.literal("accepted"),
-        v.literal("timeout"),
-        v.literal("cancelled")
+        v.literal("pending"),
+        v.literal("default"),
+        v.literal("timeout")
       ),
       terms: v.string(),
       amount: v.string(),
@@ -40,15 +39,6 @@ export default defineSchema(
     disputeRooms: defineTable({
       escrowRoomId: v.id("escrowRooms"),
       disputeStatus: v.union(v.literal("open"), v.literal("closed")),
-      // creator: v.object({
-      //   username: v.string(),
-      //   visitorId: v.string(),
-      // }),
-      // reciever: v.object({
-      //   username: v.string(),
-      //   visitorId: v.string(),
-      // }),
-
       creator: v.optional(v.number()),
       receiver: v.optional(v.number()),
     }),
