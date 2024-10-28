@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useSuperVizContext } from "@/context";
-import { api } from "@/convex/_generated/api";
+import { api } from "@packages/store/convex/_generated/api";
 import useCopyToClipboard from "@/hooks/use-clipboard";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "convex/react";

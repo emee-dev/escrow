@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSuperVizContext } from "@/context";
-import { api } from "@/convex/_generated/api";
+import { api } from "@packages/store/convex/_generated/api";
 import {
   encodeImageToBase64,
   generateId,

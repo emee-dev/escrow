@@ -1,0 +1,7 @@
+{
+  "name": "@packages/store",
+  "scripts": {
+    "dev": "convex dev",
+    "setup": "convex dev --until-success"
+  }
+}

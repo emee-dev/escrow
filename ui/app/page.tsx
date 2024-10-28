@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { api } from "convex_repo/_generated/api";
 import { v4 as uuidv4 } from "uuid";
 import { customAlphabet } from "nanoid";
 import { usePathname, useRouter } from "next/navigation";

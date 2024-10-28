@@ -4,7 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { stream } from "hono/streaming";
-import { api } from "../../convex/_generated/api";
+import { api } from "@packages/store/convex/_generated/api";
 import { addSystemAndPrefix, SystemMessage, StoreResponse } from "./utils";
 
 const client = new ConvexHttpClient(process.env["NEXT_PUBLIC_CONVEX_URL"]!);
