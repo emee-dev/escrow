@@ -3,5 +3,8 @@
   "scripts": {
     "dev": "convex dev",
     "setup": "convex dev --until-success"
+  },
+  "dependencies": {
+    "convex": "^1.17.0"
   }
 }
