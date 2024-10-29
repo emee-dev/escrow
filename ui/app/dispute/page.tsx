@@ -26,6 +26,7 @@ import { ArrowDown, ArrowUp, Bot, Paperclip, RefreshCw, X } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 
 type DisputePayload = {
   message: string;
@@ -199,7 +200,7 @@ export default function Component({ searchParams }: ComponentProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full">
-                <img
+                <Image
                   src="/placeholder.svg"
                   width="32"
                   height="32"
@@ -230,9 +231,11 @@ export default function Component({ searchParams }: ComponentProps) {
             {uploadedFiles.map((file, index) => (
               <div key={index} style={{ margin: "8px", textAlign: "center" }}>
                 <h4>{file.name}</h4>
-                <img
+                <Image
                   src={file.base64}
                   alt={file.name}
+                  width={149}
+                  height={149}
                   style={{ maxWidth: "150px", maxHeight: "150px" }}
                 />
               </div>
