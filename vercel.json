@@ -1,4 +1,0 @@
-{
-  "outputDirectory": "ui/output",
-  "buildCommand": "turbo run build --filter ui"
-}

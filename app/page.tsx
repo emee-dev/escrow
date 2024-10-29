@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSuperVizContext } from "@/context";
 import { generateId } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { api } from "@packages/store/convex/_generated/api";
+import { api } from "../convex/_generated/api";
 import { useMutation, usePaginatedQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
