@@ -48,8 +48,8 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
     if (getRoomStatus && getRoomStatus.data?.payment_status === "pending") {
       setStartEscrow(true);
     } else if (
-      getRoomStatus &&
-      getRoomStatus.data?.payment_status === "refused"
+      (getRoomStatus && getRoomStatus.data?.payment_status === "refused") ||
+      (getRoomStatus && getRoomStatus.data?.payment_status === "dispute")
     ) {
       const room = getRoomStatus.data!;
 
@@ -82,6 +82,17 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
         {getRoomStatus && getRoomStatus.data?.payment_status === "refused" && (
           <Card>
             <CardHeader>Third party refused to pay.</CardHeader>
+            <CardContent className="justify-center flex flex-col">
+              <Link href={disputeRoomUrl} className="w-full">
+                <Button className="w-full">Go to dispute</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+
+        {getRoomStatus && getRoomStatus.data?.payment_status === "dispute" && (
+          <Card>
+            <CardHeader>Room has been suspended, goto dispute chat.</CardHeader>
             <CardContent className="justify-center flex flex-col">
               <Link href={disputeRoomUrl} className="w-full">
                 <Button className="w-full">Go to dispute</Button>

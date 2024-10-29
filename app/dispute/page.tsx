@@ -227,7 +227,7 @@ export default function Component({ searchParams }: ComponentProps) {
       <div className="flex flex-col">
         <ChatHeader />
         <div className="flex-1 overflow-auto p-4 sm:p-6">
-          <div className="flex items-center">
+          {/* <div className="flex items-center">
             {uploadedFiles.map((file, index) => (
               <div key={index} style={{ margin: "8px", textAlign: "center" }}>
                 <h4>{file.name}</h4>
@@ -240,7 +240,7 @@ export default function Component({ searchParams }: ComponentProps) {
                 />
               </div>
             ))}
-          </div>
+          </div> */}
 
           {messages && messages.data.length > 0 ? (
             <ChatBody messages={messages.data} />

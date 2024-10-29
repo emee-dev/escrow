@@ -31,6 +31,7 @@ export const storeMessage = mutation({
             type: v.literal("image_url"),
           })
         ),
+        prefix: v.optional(v.boolean()),
         uploadType: v.literal("image-prompt"),
       })
     ),
@@ -86,7 +87,12 @@ export const storeMessage = mutation({
 
     const oldMessages = data.messages;
 
-    oldMessages.push(newMessage);
+    oldMessages.push({
+      content: newMessage.content,
+      id: newMessage.id,
+      role: newMessage.role,
+      prefix: newMessage.prefix,
+    });
 
     // Update message list if record exists
     await ctx.db.patch(data._id, { messages: oldMessages });
@@ -167,6 +173,28 @@ export const webhookCallback = internalAction({
   handler: async (_, { groupId, roomId }) => {
     try {
       const req = await fetch(`${BACKEND_AI_WEBHOOK}/sse/${roomId}/${groupId}`);
+
+      if (!req.ok) {
+        console.log("Bad Request: ", await req.text());
+
+        return;
+      }
+
+      const res = await req.json();
+
+      console.log("Response: ", res);
+    } catch (error: any) {
+      console.error("AI Webhook Fetch Error:", error);
+    }
+  },
+});
+
+export const serverHealthCheck = internalAction({
+  args: {},
+  handler: async (_, args) => {
+    try {
+      console.log("Ping backend");
+      const req = await fetch(`${BACKEND_AI_WEBHOOK}`);
 
       if (!req.ok) {
         console.log("Bad Request: ", await req.text());

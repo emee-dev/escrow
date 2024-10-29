@@ -2,6 +2,52 @@ import { v } from "convex/values";
 import { internalAction, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 
+type Store = {
+  prefix?: boolean | undefined;
+  id: string;
+  content:
+    | string
+    | {
+        type: "image_url";
+        imageUrl: {
+          url: string;
+          detail: string | null;
+        };
+      }[];
+  role: "system" | "user" | "assistant";
+};
+
+export type StoreResponse = {
+  data: Store[];
+  message: string;
+};
+export type SystemMessage = {
+  id: string;
+  role: Store["role"];
+  content: string;
+};
+const systemMessage = `
+  You are an AI dispute bot. You specifically help resolve escrow disputes between two people (participants).
+  A participant is identified by the hashtag in their message.
+
+  eg
+  #participant1: I need help the other person has refused to pay me and the timer has gone to zero.
+  #participant2: I have paid, but it seems my bank is having payment issues. It is not my fault.
+
+  Be direct. Best to reply with a generic response, if you do not understand.
+
+  Assume they are confused and need assistance.
+
+  I need your reply to contain the participant id.
+
+  eg your reply
+  #participant1-reply: <your reply>
+  #participant2-reply: Give me the transaction info.
+`;
+const system = {
+  role: "system",
+  content: systemMessage,
+} as SystemMessage;
 const BACKEND_AI_WEBHOOK = process.env.BACKEND_AI_WEBHOOK;
 
 export const storeMessage = mutation({
@@ -65,18 +111,31 @@ export const storeMessage = mutation({
       .first();
 
     if (!data) {
+      const initialMessage = [
+        system,
+        {
+          id: newMessage.id,
+          role: newMessage.role,
+          content: newMessage.content,
+        },
+      ];
+
+      console.log("First prompt: ", initialMessage);
+
       const createRecord = await ctx.db.insert("store", {
         disputeRoomId: disputeRoom._id,
-        messages: [
-          {
-            id: newMessage.id,
-            role: newMessage.role,
-            content: newMessage.content,
-          },
-        ],
+        messages: initialMessage,
       });
 
       const getRecord = await ctx.db.get(createRecord);
+
+      // To avoid an infinite webhook loop
+      if (newMessage.role === "user") {
+        await ctx.scheduler.runAfter(0, internal.store.webhookCallback, {
+          roomId,
+          groupId,
+        });
+      }
 
       return {
         data: getRecord?.messages || [],
@@ -84,28 +143,57 @@ export const storeMessage = mutation({
       };
     }
 
-    const oldMessages = data.messages;
+    if (data.messages.length === 0) {
+      const initialMessage = [
+        system,
+        {
+          id: newMessage.id,
+          role: newMessage.role,
+          content: newMessage.content,
+        },
+      ];
 
-    oldMessages.push(newMessage);
+      console.log("Messages are empty: ", initialMessage);
 
-    // Update message list if record exists
-    await ctx.db.patch(data._id, { messages: oldMessages });
+      await ctx.db.patch(data._id, { messages: initialMessage });
 
-    const fetchAgain = await ctx.db.get(data._id);
+      const fetchAgain = await ctx.db.get(data._id);
 
-    // To avoid an infinite webhook loop
-    // @ts-expect-error allow system messages
-    if (newMessage.role === "user" || newMessage.role === "system") {
-      await ctx.scheduler.runAfter(0, internal.store.webhookCallback, {
-        roomId,
-        groupId,
-      });
+      // To avoid an infinite webhook loop
+      if (newMessage.role === "user") {
+        await ctx.scheduler.runAfter(0, internal.store.webhookCallback, {
+          roomId,
+          groupId,
+        });
+      }
+
+      return {
+        data: fetchAgain?.messages || [],
+        message: "Record was inserted.",
+      };
+    } else {
+      const oldMessages = data.messages;
+
+      oldMessages.push(newMessage);
+
+      // Update message list if record exists
+      await ctx.db.patch(data._id, { messages: oldMessages });
+
+      const fetchAgain = await ctx.db.get(data._id);
+
+      // To avoid an infinite webhook loop
+      if (newMessage.role === "user") {
+        await ctx.scheduler.runAfter(0, internal.store.webhookCallback, {
+          roomId,
+          groupId,
+        });
+      }
+
+      return {
+        data: fetchAgain?.messages || [],
+        message: "Data was fetched.",
+      };
     }
-
-    return {
-      data: fetchAgain?.messages || [],
-      message: "Data was fetched.",
-    };
   },
 });
 
@@ -182,3 +270,15 @@ export const webhookCallback = internalAction({
     }
   },
 });
+
+// utils
+export const addSystemMessage = (system: SystemMessage, messages: Store[]) => {
+  // Check if the first item is a system message; if not, prepend the system message.
+  if (messages[0]?.role !== "system") {
+    messages.unshift(system);
+  }
+
+  return messages.map(
+    (msg) => ({ role: msg.role, content: msg.content }) as SystemMessage
+  );
+};
