@@ -12,7 +12,7 @@
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "types": ["node"],
+    // "types": ["node"],
     "jsx": "react-jsx",
     "baseUrl": ".",
     "jsxImportSource": "hono/jsx",
