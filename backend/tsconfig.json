@@ -1,9 +1,34 @@
+// {
+//   "compilerOptions": {
+//     "target": "ES2022",
+//     "declaration": true,
+//     "moduleResolution": "Bundler",
+//     "outDir": "dist",
+//     "esModuleInterop": true,
+//     "forceConsistentCasingInFileNames": true,
+//     "strict": true,
+//     "allowJs": true,
+//     "skipLibCheck": false,
+//     "noImplicitAny": false,
+//     "noUnusedLocals": false,
+//     "noUnusedParameters": false,
+//     "jsx": "react-jsx",
+//     "baseUrl": ".",
+//     "jsxImportSource": "hono/jsx",
+//     "paths": {
+//       "@store/*": ["../convex/_generated/*"]
+//     }
+//   },
+//   "include": ["./src/**/*.ts", "../convex/_generated/**/*"]
+// }
+
 {
   "compilerOptions": {
     "target": "ES2022",
     "declaration": true,
     "moduleResolution": "Bundler",
-    "outDir": "./dist",
+    // "allowImportingTsExtensions": true,
+    "outDir": "dist",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -12,14 +37,12 @@
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    // "types": ["node"],
     "jsx": "react-jsx",
     "baseUrl": ".",
     "jsxImportSource": "hono/jsx",
     "paths": {
-      "@/*": ["./src/*"],
-      "@store/*": ["../convex/*"]
+      "@store/*": ["../convex/_generated/*"]
     }
   },
-  "include": ["./src", "../convex/**/*"]
+  "include": ["./src/**/*.ts", "../convex/_generated/**/*"]
 }

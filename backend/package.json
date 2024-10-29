@@ -1,12 +1,11 @@
 {
   "name": "backend",
   "type": "module",
-  "main": "./dist/backend/src/index.js",
   "scripts": {
     "dev": "dotenv -e ./.env.local -- tsx watch src/index.ts",
     "build": "rm -rf ./dist && echo 'skipping builds'",
     "rm:build": "rm -rf ./dist && tsc && tsc-alias -p tsconfig.json",
-    "start": "tsx src/index.ts"
+    "start": "tsx dist/backend/src/index.js"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.2",
