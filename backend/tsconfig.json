@@ -41,8 +41,9 @@
     "baseUrl": ".",
     "jsxImportSource": "hono/jsx",
     "paths": {
-      "@store/*": ["../convex/_generated/*"]
+      "@store/*": ["./convex/_generated/*"]
     }
   },
-  "include": ["./src/**/*.ts", "../convex/_generated/**/*"]
+  // "include": ["./src/**/*.ts", "../convex/_generated/**/*"]
+  "include": ["./src/**/*.ts", "./convex/_generated/**/*"]
 }
