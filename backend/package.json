@@ -16,11 +16,11 @@
     "fetch-blob": "^4.0.0",
     "hono": "^4.6.7",
     "image2uri": "^2.1.2",
-    "tsc-alias": "^1.8.10"
+    "tsc-alias": "^1.8.10",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
-    "@types/node": "^20.17.1",
-    "tsx": "^4.7.1"
+    "@types/node": "^20.17.1"
   },
   "engines": {
     "node": ">=22.2.0"
