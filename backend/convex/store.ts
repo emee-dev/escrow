@@ -43,6 +43,9 @@ const systemMessage = `
   eg your reply
   #participant1-reply: <your reply>
   #participant2-reply: Give me the transaction info.
+
+  Note: They may provide additional proofs like transaction info or images. Extract valuable context from it and use that in your judgement.
+  
 `;
 const system = {
   role: "system",

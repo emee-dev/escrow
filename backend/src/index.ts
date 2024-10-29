@@ -56,7 +56,7 @@ const systemMessage = `
   #participant1-reply: <your reply>
   #participant2-reply: Give me the transaction info.
 
-  Note: They may provide additional proofs like transaction info. Extract valuable context from it and use that in your judgement
+  Note: They may provide additional proofs like transaction info or images. Extract valuable context from it and use that in your judgement.
   
 `;
 
