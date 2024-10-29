@@ -9,6 +9,7 @@
     "strict": true,
     "allowJs": true,
     "skipLibCheck": false,
+    "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "types": ["node"],
