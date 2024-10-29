@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSuperVizContext } from "@/context";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "../../convex/_generated/api";
 import {
   encodeImageToBase64,
@@ -89,6 +90,11 @@ export default function Component({ searchParams }: ComponentProps) {
     // other persons subscribed message. It helps avoid duplicating messages.
     if (payload.data.participantId === context.participant.id) {
       const userPrompt = payload.data.message;
+
+      if (!userPrompt) {
+        console.log("User did not provide any prompt.");
+        return;
+      }
 
       // Upload images with detail prompt
       if (uploadedFiles.length > 0) {
@@ -227,25 +233,12 @@ export default function Component({ searchParams }: ComponentProps) {
       <div className="flex flex-col">
         <ChatHeader />
         <div className="flex-1 overflow-auto p-4 sm:p-6">
-          {/* <div className="flex items-center">
-            {uploadedFiles.map((file, index) => (
-              <div key={index} style={{ margin: "8px", textAlign: "center" }}>
-                <h4>{file.name}</h4>
-                <Image
-                  src={file.base64}
-                  alt={file.name}
-                  width={149}
-                  height={149}
-                  style={{ maxWidth: "150px", maxHeight: "150px" }}
-                />
-              </div>
-            ))}
-          </div> */}
-
           {messages && messages.data.length > 0 ? (
-            <ChatBody messages={messages.data} />
+            <ScrollArea className="flex-1">
+              <ChatBody messages={messages.data} />
+            </ScrollArea>
           ) : (
-            <div>
+            <div className="flex w-full justify-center">
               <span>There are no messages</span>
             </div>
           )}
@@ -261,7 +254,7 @@ export default function Component({ searchParams }: ComponentProps) {
             placeholder="Click here"
           />
         </div>
-        <div className="sticky bottom-0 z-10 bg-background p-4 sm:p-6">
+        <div className="sticky bottom-0 z-10 shadow-md bg-background p-4 sm:p-6">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -308,8 +301,17 @@ export default function Component({ searchParams }: ComponentProps) {
               name="message"
               id="message"
               rows={1}
-              // value={input}
-              // onChange={handleInputChange}
+              onKeyDown={(e) => {
+                if (e.keyCode === 13 && e.shiftKey == false) {
+                  e.preventDefault();
+
+                  const parentForm = e.currentTarget.closest("form");
+
+                  if (parentForm) {
+                    parentForm.submit();
+                  }
+                }
+              }}
               className="min-h-[48px] rounded-2xl resize-none p-4 pl-16 border border-neutral-400 shadow-sm pr-16"
             />
             <Button
@@ -400,15 +402,15 @@ const ChatHeader = () => (
   </div>
 );
 
+type ImageContent = {
+  type: "image_url";
+  imageUrl: { url: string; detail: string | null };
+};
+
 type ChatBodyProps = {
   messages: {
     id: string;
-    content:
-      | string
-      | {
-          type: "image_url";
-          imageUrl: { url: string; detail: string | null };
-        }[];
+    content: string | ImageContent[];
     prefix?: boolean;
     role: "user" | "assistant" | "system";
   }[];
@@ -430,6 +432,19 @@ const ChatBody = ({ messages }: ChatBodyProps) => {
         if (message.role === "user" && typeof message.content === "string") {
           return (
             <RightAlignMessage key={message.id} content={message.content} />
+          );
+        }
+
+        if (
+          message.role === "user" &&
+          Array.isArray(message.content) &&
+          typeof message.content !== "string"
+        ) {
+          return (
+            <RightAlignMessageWithImages
+              key={message.id}
+              content={message.content as ImageContent[]}
+            />
           );
         }
       })}
@@ -460,7 +475,7 @@ const LeftAlignMessage = ({ content }: { content: string }) => {
       </Avatar>
       <div className="grid gap-1 rounded-lg bg-muted p-3">
         <div className="font-medium">John Doe</div>
-        <div className="text-sm leading-relaxed">{content}</div>
+        <div className="text-sm leading-relaxed">{stripReply(content)}</div>
         {/* {upload && (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon">
@@ -482,7 +497,7 @@ const RightAlignMessage = ({ content }: { content: string }) => {
     <div className="flex items-start gap-4 justify-end">
       <div className="grid gap-1 rounded-lg bg-primary p-3 text-primary-foreground">
         <div className="font-medium">You</div>
-        <div className="text-sm leading-relaxed">{content}</div>
+        <div className="text-sm leading-relaxed">{stripSent(content)}</div>
       </div>
       <Avatar className="w-10 h-10 border">
         <AvatarImage src="/placeholder-user.jpg" alt="User" />
@@ -491,3 +506,50 @@ const RightAlignMessage = ({ content }: { content: string }) => {
     </div>
   );
 };
+
+const RightAlignMessageWithImages = ({
+  content,
+}: {
+  content: ImageContent[];
+}) => {
+  // Extract the last image detail from the array (if exists)
+  const lastDetail =
+    content.length > 0 ? content[content.length - 1].imageUrl.detail : "";
+
+  return (
+    <div className="flex items-start gap-4 justify-end">
+      <div className="grid gap-1 rounded-lg bg-primary p-3 text-primary-foreground">
+        <div className="font-medium">You</div>
+        <div className="text-sm leading-relaxed">
+          {stripSent(lastDetail || "")}
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        {/* Loop through each image in content and render */}
+        {content.map((imageContent, index) => (
+          <img
+            key={index}
+            src={imageContent.imageUrl.url}
+            alt={imageContent.imageUrl.detail || "Image"}
+            className="rounded-lg shadow-md"
+          />
+        ))}
+      </div>
+      <Avatar className="w-10 h-10 border">
+        <AvatarImage src="/placeholder-user.jpg" alt="User" />
+        <AvatarFallback>YO</AvatarFallback>
+      </Avatar>
+    </div>
+  );
+};
+
+// Helper functions for stripping text
+function stripReply(input: string): string {
+  const regex = /^#participant-[\w-]+-reply:\s*/;
+  return input.replace(regex, "").trim();
+}
+
+function stripSent(input: string): string {
+  const regex = /^#participant-[\w-]+:\s*/;
+  return input.replace(regex, "").trim();
+}

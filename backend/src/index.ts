@@ -25,7 +25,11 @@ app.use(
   })
 );
 
-app.get("/", (c) => c.text("Hello Hono!"));
+app.get("/", (c) =>
+  c.json({
+    message: "Server is doing well.",
+  })
+);
 
 app.use("/sse/*", async (c, next) => {
   c.header("Content-Type", "text/event-stream");
@@ -51,6 +55,9 @@ const systemMessage = `
   eg your reply
   #participant1-reply: <your reply>
   #participant2-reply: Give me the transaction info.
+
+  Note: They may provide additional proofs like transaction info. Extract valuable context from it and use that in your judgement
+  
 `;
 
 const system = {
@@ -64,12 +71,6 @@ type Temp = {
   delta: { content: string };
   finishReason: null | "stop" | "tool_calls" | "length" | "error";
 };
-
-app.post("/", async (c) => {
-  const body = await c.req.json();
-
-  return c.json({ message: "Server is good." });
-});
 
 app.get("/sse/:roomId/:groupId", async (c) => {
   try {
