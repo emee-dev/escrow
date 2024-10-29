@@ -7,21 +7,18 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
+    "allowJs": true,
     "skipLibCheck": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "types": ["node"],
     "jsx": "react-jsx",
+    "baseUrl": ".",
     "jsxImportSource": "hono/jsx",
     "paths": {
-      "@packages/store/*": ["../packages/store/convex/*"]
+      "@/*": ["./src/*"],
+      "@store/*": ["../convex/*"]
     }
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts",
-    "src/**/*.mts",
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx"
-  ]
+  "include": ["./src", "../convex/**/*"]
 }

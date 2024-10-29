@@ -16,11 +16,13 @@ import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, Copy, Hourglass, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 type EscrowTimerProps = {
   roomId: string;
   groupId: string;
   startEscrow: boolean;
+  paymentStatus: "dispute" | "pending" | "default" | "refused";
   initialTimeInSeconds?: number;
 };
 
@@ -32,7 +34,10 @@ type WaitingRoomProps = {
 export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
   const roomId = searchParams.roomId;
   const groupId = searchParams.groupId;
+  const router = useRouter();
+  const context = useSuperVizContext();
   const [startEscrow, setStartEscrow] = useState(false);
+  const [disputeRoomUrl, setDisputeRoomUrl] = useState("");
 
   const getRoomStatus = useQuery(
     api.escrow.getRoomStatus,
@@ -42,6 +47,18 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
   useEffect(() => {
     if (getRoomStatus && getRoomStatus.data?.payment_status === "pending") {
       setStartEscrow(true);
+    } else if (
+      getRoomStatus &&
+      getRoomStatus.data?.payment_status === "refused"
+    ) {
+      const room = getRoomStatus.data!;
+
+      const userType: "creator" | "reciever" =
+        room.creator.visitorId === context.visitorId ? "creator" : "reciever";
+
+      setDisputeRoomUrl(
+        `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+      );
     } else {
       setStartEscrow(false);
     }
@@ -57,8 +74,20 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
             roomId={roomId}
             groupId={groupId}
             startEscrow={startEscrow}
+            paymentStatus={getRoomStatus.data?.payment_status}
             initialTimeInSeconds={25}
           />
+        )}
+
+        {getRoomStatus && getRoomStatus.data?.payment_status === "refused" && (
+          <Card>
+            <CardHeader>Third party refused to pay.</CardHeader>
+            <CardContent className="justify-center flex flex-col">
+              <Link href={disputeRoomUrl} className="w-full">
+                <Button className="w-full">Go to dispute</Button>
+              </Link>
+            </CardContent>
+          </Card>
         )}
 
         {!getRoomStatus ||
@@ -149,7 +178,11 @@ function EscrowTimer(props: EscrowTimerProps) {
       const timerId = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timerId);
     } else {
-      setIsTimerExpired(true);
+      if (props.paymentStatus === "pending") {
+        setIsTimerExpired(true);
+      } else {
+        setIsTimerExpired(true);
+      }
     }
   }, [timeLeft, props]);
 

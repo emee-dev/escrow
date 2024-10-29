@@ -29,6 +29,7 @@ import { useMutation, usePaginatedQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import Link from "next/link";
 
 export default function LandingPage() {
   const context = useSuperVizContext();
@@ -99,10 +100,13 @@ export default function LandingPage() {
                       </TableCell>
                       <TableCell>{escrow.payment_status}</TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm">
-                          {/* {escrow.} */}
-                          BTN
-                        </Button>
+                        <Link
+                          href={`/room?roomId=${escrow.roomId}&groupId=${escrow.groupId}`}
+                        >
+                          <Button variant="outline" size="sm">
+                            Goto Room
+                          </Button>
+                        </Link>
                       </TableCell>
                     </TableRow>
                   ))}

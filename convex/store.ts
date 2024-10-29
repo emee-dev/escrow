@@ -94,7 +94,8 @@ export const storeMessage = mutation({
     const fetchAgain = await ctx.db.get(data._id);
 
     // To avoid an infinite webhook loop
-    if (newMessage.role === "user") {
+    // @ts-expect-error allow system messages
+    if (newMessage.role === "user" || newMessage.role === "system") {
       await ctx.scheduler.runAfter(0, internal.store.webhookCallback, {
         roomId,
         groupId,
@@ -112,13 +113,12 @@ export const fetchRoomMessages = query({
   args: {
     roomId: v.string(),
     groupId: v.string(),
-    // escrowRoomId: v.id("escrowRooms"),
   },
   handler: async (ctx, { roomId, groupId }) => {
     const escrowRoom = await ctx.db
       .query("escrowRooms")
       .filter((q) =>
-        q.add(
+        q.and(
           q.eq(q.field("roomId"), roomId),
           q.eq(q.field("groupId"), groupId)
         )
