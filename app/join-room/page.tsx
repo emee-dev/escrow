@@ -9,29 +9,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useSuperVizContext } from "@/context";
-import { api } from "../../convex/_generated/api";
-import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
-import { AlertTriangle, Hourglass, Link, X } from "lucide-react";
+import { AlertTriangle, Hourglass, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { PaymentConfirmed } from "@/components/ui/dispute";
+import { api } from "../../convex/_generated/api";
 
 type ViewTypes = "accept_escrow" | "start_timer" | "payment_complete";
-
-// type EscrowTimerProps = {
-//   startEscrow: boolean;
-//   roomId: string;
-//   groupId: string;
-//   initialTimeInSeconds?: number;
-// };
 
 type EscrowTimerProps = {
   roomId: string;
@@ -76,7 +68,11 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
               ? "creator"
               : "reciever";
 
-          router.push(
+          // router.push(
+          //   `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+          // );
+
+          setDisputeRoomUrl(
             `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
           );
         } else if (
@@ -113,15 +109,6 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
           <PaymentConfirmed />
         )} */}
 
-        {/* {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
-          <EscrowTimer
-            roomId={roomId}
-            groupId={groupId}
-            initialTimeInSeconds={25}
-            startEscrow={startEscrow}
-          />
-        )} */}
-
         {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
           <EscrowTimer
             roomId={roomId}
@@ -130,6 +117,21 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
             paymentStatus={getRoomStatus.data?.payment_status}
             initialTimeInSeconds={25}
           />
+        )}
+
+        {getRoomStatus && getRoomStatus.data?.payment_status === "refused" && (
+          <Card>
+            <CardHeader>
+              You have decided not to pay. Prepare for trouble.
+            </CardHeader>
+            <CardContent className="justify-center flex flex-col">
+              <Button className="w-full">
+                <Link href={disputeRoomUrl} className="w-full">
+                  Go to dispute
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {getRoomStatus && getRoomStatus.data?.payment_status === "dispute" && (
@@ -346,35 +348,25 @@ function AcceptEscrow(props: {
 }
 
 function EscroNavbar() {
-  const { toast } = useToast();
-
-  const handleClose = useCallback(() => {
-    // Implement your close logic here
-    console.log("Close button clicked");
-  }, []);
-
   return (
     <div className="sticky top-0 px-3 z-50 w-full border-b bg-background/95  backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center">
         <div className="hidden md:flex flex-1">
-          <a className=" flex items-center space-x-2" href="/">
-            <span className="hidden font-bold sm:inline-block">Escrow</span>
-          </a>
+          <Link className="flex items-center space-x-2" href="/">
+            <span className="hidden font-bold sm:inline-block">Buyer View</span>
+          </Link>
         </div>
 
         <div className="flex items-center space-x-2 md:justify-end">
-          <nav className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className=""
-              onClick={handleClose}
-            >
-              <span className="sr-only">Close</span>
-              <X className="h-4 w-4" />
-              <span className="">Close</span>
-            </Button>
-          </nav>
+          <div className="flex items-center space-x-2">
+            <Link href={"/"}>
+              <Button variant="outline" size="sm">
+                <span className="sr-only">Close</span>
+                <X className="h-4 w-4" />
+                <span className="">Close</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -28,6 +28,8 @@ import {
   Paperclip,
   RefreshCw,
   Router,
+  Video,
+  VideoOff,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -108,6 +110,8 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
   const { subscribe, isReady, publish, unsubscribe } = useRealtime("default");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
+  const filesRef = useRef<any[]>([]);
+
   const doesDisputeExist = useQuery(
     api.dispute.doesDisputeExistForThisRoom,
     roomId && groupId ? { groupId, roomId } : "skip"
@@ -121,63 +125,55 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
     roomId && groupId ? { groupId, roomId } : "skip"
   );
 
-  const sendMessageToChatBot = useCallback(
-    async (payload: SubscriptionPayload) => {
-      if (!context.participant) {
-        console.log("User is not defined.");
+  const sendMessageToChatBot = async (payload: SubscriptionPayload) => {
+    if (!context.participant) {
+      console.log("User is not defined.");
+      return;
+    }
+
+    // Make sure the current user's message is sent, if not it will also send the
+    // other persons subscribed message. It helps avoid duplicating messages.
+    if (payload.data.participantId === context.participant.id) {
+      const userPrompt = payload.data.message;
+
+      if (!userPrompt) {
+        console.log("User did not provide any prompt.");
         return;
       }
 
-      // Make sure the current user's message is sent, if not it will also send the
-      // other persons subscribed message. It helps avoid duplicating messages.
-      if (payload.data.participantId === context.participant.id) {
-        const userPrompt = payload.data.message;
+      // Upload images with detail prompt
+      if (filesRef.current && filesRef.current.length > 0) {
+        const prompt = `#${context.participant.name}: ${userPrompt}`;
+        const data = await prepareImagePrompt(prompt, filesRef.current);
 
-        if (!userPrompt) {
-          console.log("User did not provide any prompt.");
-          return;
-        }
-
-        console.log("uploadedFiles", uploadedFiles);
-
-        // Upload images with detail prompt
-        if (uploadedFiles && uploadedFiles.length > 0) {
-          const prompt = `#${context.participant.name}: ${userPrompt}`;
-          const data = await prepareImagePrompt(prompt, uploadedFiles);
-
-          console.log("Image prompt", data);
-
-          const newData = await setMessage({
-            groupId,
-            roomId,
-            newMessage: {
-              role: "user",
-              content: [data.content],
-              id: generateId(),
-              uploadType: "image-prompt",
-            },
-          });
-
-          // reset the file list
-        } else {
-          const newData = await setMessage({
-            groupId,
-            roomId,
-            newMessage: {
-              role: "user",
-              id: generateId(),
-              content: `#${context.participant.name}: ${userPrompt}`,
-              uploadType: "text-prompt",
-            },
-          });
-        }
-
-        setUploadedFiles([]);
-        console.log("Payload: ", payload);
+        const newData = await setMessage({
+          groupId,
+          roomId,
+          newMessage: {
+            role: "user",
+            content: [data.content],
+            id: generateId(),
+            uploadType: "image-prompt",
+          },
+        });
+      } else {
+        const newData = await setMessage({
+          groupId,
+          roomId,
+          newMessage: {
+            role: "user",
+            id: generateId(),
+            content: `#${context.participant.name}: ${userPrompt}`,
+            uploadType: "text-prompt",
+          },
+        });
       }
-    },
-    [context, uploadedFiles]
-  );
+
+      filesRef.current = [];
+      setUploadedFiles([]); // safe measure
+      console.log("Payload: ", payload);
+    }
+  };
 
   useEffect(
     () => {
@@ -224,17 +220,21 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
 
   // Subscribe to dispute messages
   useEffect(() => {
-    if (!isReady || isSubscribed.current || !doesDisputeExist?.data) return;
+    if (!isReady || isSubscribed.current || !doesDisputeExist?.data) {
+      return;
+    }
 
     subscribe("dispute_message", sendMessageToChatBot);
+    console.log("Subscribed");
 
     isSubscribed.current = true;
     return () => {
       unsubscribe("dispute_message", (data) => {
         console.log("unsubscribed: ", data);
+        isSubscribed.current = false;
       });
     };
-  }, [isReady, doesDisputeExist]);
+  }, [isReady, doesDisputeExist, uploadedFiles]);
 
   if (!roomId || !groupId) {
     return notFound();
@@ -251,6 +251,8 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
           return { name: file.name, base64, index: uuidv4() };
         })
       );
+
+      filesRef.current = [...filesRef.current, ...newFiles];
       setUploadedFiles((prevFiles) => [...prevFiles, ...newFiles]);
     }
   };
@@ -364,6 +366,8 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
               if (textArea) {
                 textArea.value = "";
               }
+
+              setUploadedFiles([]); // safe measure
             }}
             className="relative"
           >
@@ -471,33 +475,78 @@ function WalletCard() {
   );
 }
 
-const ChatHeader = () => (
-  <div className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:h-16 sm:px-6">
-    <div className="flex-1">
-      <div className="flex items-center gap-2">
-        <div className="text-sm mt-3">
-          Please provide all the neccessary information (statement, receipts
-          etc).
+const ChatHeader = () => {
+  const { hangUp } = useVideo();
+  const context = useSuperVizContext();
+
+  return (
+    <div className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:h-16 sm:px-6">
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <div className="text-sm mt-3 space-x-3">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size={"icon"}
+                    variant={"outline"}
+                    onClick={() => {
+                      context.setIsVideoEnabled(true);
+                      console.log("Live cam has started.");
+                    }}
+                  >
+                    <Video className="h-5 w-5" />
+                    <span className="sr-only">Start video</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Start video</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size={"icon"}
+                    variant={"outline"}
+                    onClick={() => {
+                      hangUp();
+                      context.setIsVideoEnabled(false);
+                      console.log("Camera has been terminated.");
+                    }}
+                  >
+                    <VideoOff className="h-5 w-5" />
+                    <span className="sr-only">Stop video</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Stop video</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
       </div>
+      <div className="flex items-center gap-2">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => {}}>
+                <EllipsisVertical className="h-5 w-5" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>End dispute</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
     </div>
-    <div className="flex items-center gap-2">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <EllipsisVertical className="h-5 w-5" />
-              <span className="sr-only">Close</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>End dispute</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
-  </div>
-);
+  );
+};
 
 type ImageContent = {
   type: "image_url";
@@ -545,20 +594,6 @@ const ChatBody = ({ messages }: ChatBodyProps) => {
           );
         }
       })}
-
-      {/* <div className="flex items-start gap-4">
-        <Avatar className="w-10 h-10 border">
-          <AvatarImage src="/placeholder-user.jpg" alt="User" />
-          <AvatarFallback>JD</AvatarFallback>
-        </Avatar>
-        <div className="grid gap-1 rounded-lg bg-muted p-3">
-          <div className="font-medium">John Doe</div>
-          <div className="text-sm leading-relaxed">
-            Sounds good! Let me know if you have any questions or need any
-            clarification.
-          </div>
-        </div>
-      </div> */}
     </div>
   );
 };
@@ -595,29 +630,29 @@ const RightAlignMessageWithImages = ({
     content.length > 0 ? content[content.length - 1].imageUrl.detail : "";
 
   return (
-    <div className="flex items-start gap-4 justify-end">
+    <div className="flex flex-col items-end gap-2">
+      {/* Text Section */}
       <div className="grid gap-1 rounded-lg bg-primary p-3 text-primary-foreground">
         <div className="font-medium">You</div>
         <div className="text-sm leading-relaxed">
           {stripSent(lastDetail || "")}
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        {/* Loop through each image in content and render */}
+
+      {/* Images Section */}
+      <div className="flex flex-wrap gap-2">
         {content.map((imageContent, index) => (
           <Image
             key={index}
             src={imageContent.imageUrl.url}
             alt={imageContent.imageUrl.detail || "Image"}
+            width={65}
+            height={65}
             className="rounded-lg shadow-md"
             priority={false}
           />
         ))}
       </div>
-      <Avatar className="w-10 h-10 border">
-        <AvatarImage src="/placeholder-user.jpg" alt="User" />
-        <AvatarFallback>YO</AvatarFallback>
-      </Avatar>
     </div>
   );
 };

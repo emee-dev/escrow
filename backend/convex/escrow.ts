@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
+import { internal } from "./_generated/api";
 
 export const createEscrowRoom = mutation({
   args: {
@@ -122,7 +123,7 @@ export const getRoomById = query({
   },
 });
 
-// Updates room status
+// To be used by receiever, in order to reject payment.
 export const refusePayment = mutation({
   args: {
     roomId: v.string(),
@@ -143,7 +144,7 @@ export const refusePayment = mutation({
       return null;
     }
 
-    const data = await ctx.db.patch(room._id, { payment_status: "refused" });
+    await ctx.db.patch(room._id, { payment_status: "refused" });
   },
 });
 
@@ -167,6 +168,6 @@ export const disputePayment = internalMutation({
       return null;
     }
 
-    const data = await ctx.db.patch(room._id, { payment_status: "dispute" });
+    await ctx.db.patch(room._id, { payment_status: "dispute" });
   },
 });

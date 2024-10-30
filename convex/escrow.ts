@@ -144,7 +144,7 @@ export const refusePayment = mutation({
       return null;
     }
 
-    const data = await ctx.db.patch(room._id, { payment_status: "refused" });
+    await ctx.db.patch(room._id, { payment_status: "refused" });
   },
 });
 

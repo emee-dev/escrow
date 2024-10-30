@@ -9,15 +9,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useSuperVizContext } from "@/context";
-import { api } from "../../convex/_generated/api";
 import useCopyToClipboard from "@/hooks/use-clipboard";
-import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "convex/react";
-import { AlertTriangle, CircleCheck, Copy, Hourglass, X } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, Copy, Hourglass, X } from "lucide-react";
 import Link from "next/link";
-import { PaymentConfirmed } from "@/components/ui/dispute";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { api } from "../../convex/_generated/api";
 
 type EscrowTimerProps = {
   roomId: string;
@@ -45,56 +43,68 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
     groupId && roomId ? { groupId, roomId } : "skip"
   );
 
-  useEffect(() => {
-    async function onRoomStatusChange() {
-      try {
-        if (getRoomStatus && getRoomStatus.data?.payment_status === "pending") {
-          setStartEscrow(true);
-        } else if (
-          getRoomStatus &&
-          getRoomStatus.data?.payment_status === "dispute"
-        ) {
-          const room = getRoomStatus.data!;
+  useEffect(
+    () => {
+      async function onRoomStatusChange() {
+        try {
+          if (
+            getRoomStatus &&
+            getRoomStatus.data?.payment_status === "pending"
+          ) {
+            setStartEscrow(true);
+          } else if (
+            getRoomStatus &&
+            getRoomStatus.data?.payment_status === "dispute"
+          ) {
+            const room = getRoomStatus.data!;
 
-          const userType: "creator" | "reciever" =
-            room.creator.visitorId === context.visitorId
-              ? "creator"
-              : "reciever";
+            const userType: "creator" | "reciever" =
+              room.creator.visitorId === context.visitorId
+                ? "creator"
+                : "reciever";
 
-          setDisputeRoomUrl(
-            `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
-          );
-        } else if (
-          // when the reciever choses to not pay
-          getRoomStatus &&
-          getRoomStatus.data?.payment_status === "refused"
-        ) {
-          const room = getRoomStatus.data!;
+            setDisputeRoomUrl(
+              `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+            );
+          } else if (
+            // when the reciever choses to not pay
+            getRoomStatus &&
+            getRoomStatus.data?.payment_status === "refused"
+          ) {
+            const room = getRoomStatus.data!;
 
-          const userType: "creator" | "reciever" =
-            room.creator.visitorId === context.visitorId
-              ? "creator"
-              : "reciever";
+            const userType: "creator" | "reciever" =
+              room.creator.visitorId === context.visitorId
+                ? "creator"
+                : "reciever";
 
-          // create dispute record.
+            if (!room.reciever) {
+              console.log("Reciever not found.");
+              return;
+            }
 
-          await createDispute({
-            roomId,
-            creator: context.visitorId,
-          });
+            await createDispute({
+              roomId,
+              creator: context.visitorId,
+              receiver: room.reciever?.visitorId,
+            });
 
-          setDisputeRoomUrl(
-            `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
-          );
-        } else {
-          setStartEscrow(false);
+            setDisputeRoomUrl(
+              `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+            );
+          } else {
+            setStartEscrow(false);
+          }
+        } catch (err: any) {
+          console.log("Room change error: ", err);
         }
-      } catch (err: any) {
-        console.log("Room change error: ", err);
       }
-    }
-    onRoomStatusChange();
-  }, [getRoomStatus, context.visitorId]);
+      onRoomStatusChange();
+    },
+
+    /* eslint-disable react-hooks/exhaustive-deps */
+    [getRoomStatus, context.visitorId]
+  );
 
   return (
     <main className="w-screen h-screen">
@@ -134,9 +144,18 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
 
         {!getRoomStatus ||
           (getRoomStatus.data?.payment_status === "default" && (
-            <div>
-              There is nothing to show for now. Waiting for user to accept.
-            </div>
+            <Card>
+              <CardHeader>Room is Idle: </CardHeader>
+              <CardContent className="justify-center flex px-4 space-y-4 flex-col">
+                <div className="w-52">
+                  There is nothing to show for now. Waiting for user to accept.
+                  Invite third party to continue.
+                </div>
+                <Link href={"/"} className="w-full">
+                  <Button className="w-full">Go home</Button>
+                </Link>
+              </CardContent>
+            </Card>
           ))}
       </div>
     </main>
@@ -226,26 +245,22 @@ function EscrowTimer(props: EscrowTimerProps) {
 }
 
 function EscroNavbar() {
-  const { toast } = useToast();
   const query = useSearchParams();
   const { copied, copyToClipboard } = useCopyToClipboard();
-
-  const handleClose = useCallback(() => {
-    // Implement your close logic here
-    console.log("Close button clicked");
-  }, []);
 
   return (
     <div className="sticky top-0 px-3 z-50 w-full border-b bg-background/95  backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center">
         <div className="hidden md:flex flex-1">
           <a className=" flex items-center space-x-2" href="/">
-            <span className="hidden font-bold sm:inline-block">Escrow</span>
+            <span className="hidden font-bold sm:inline-block">
+              Seller View
+            </span>
           </a>
         </div>
 
         <div className="flex items-center space-x-2 md:justify-end">
-          <nav className="flex items-center space-x-2">
+          <nav className="flex items-center space-x-4">
             <Button
               size="sm"
               variant="outline"
@@ -264,7 +279,7 @@ function EscroNavbar() {
               {copied && <span>URL Copied!!</span>}
             </Button>
             <Link href={"/"}>
-              <Button variant="outline" size="sm" onClick={handleClose}>
+              <Button variant="outline" size="sm">
                 <span className="sr-only">Close</span>
                 <X className="h-4 w-4" />
                 <span className="">Close</span>

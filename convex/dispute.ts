@@ -3,55 +3,6 @@ import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
 
-// export const createDisputeRoom = mutation({
-//   args: {
-//     roomId: v.string(),
-//     creator: v.optional(v.number()),
-//     receiver: v.optional(v.number()),
-//   },
-//   handler: async (ctx, { roomId, creator, receiver }) => {
-//     const room = await ctx.db
-//       .query("escrowRooms")
-//       .filter((q) => q.eq(q.field("roomId"), roomId))
-//       .first();
-
-//     if (!room) {
-//       return { message: "Could not find room", data: [] };
-//     }
-
-//     const doesDisputeExist = await ctx.db
-//       .query("disputeRooms")
-//       .filter((q) =>
-//         q.and(
-//           q.eq(q.field("creator"), creator),
-//           q.eq(q.field("escrowRoomId"), room._id),
-//           q.eq(q.field("receiver"), room.reciever?.visitorId)
-//         )
-//       )
-//       .first();
-
-//     if (!doesDisputeExist) {
-//       const record = await ctx.db.insert("disputeRooms", {
-//         creator: creator,
-//         disputeStatus: "open",
-//         escrowRoomId: room._id,
-//         receiver: room.reciever?.visitorId,
-//       });
-
-//       if (!record) {
-//         return { message: "Could not createDisputeRoom", data: [] };
-//       }
-
-//       return { message: "Dispute room was created sucessfully.", data: [] };
-//     }
-
-//     await ctx.runMutation(internal.escrow.disputePayment, {
-//       groupId: room.groupId,
-//       roomId: room.roomId,
-//     });
-//   },
-// });
-
 export const createDisputeRoom = mutation({
   args: {
     roomId: v.string(),
@@ -59,7 +10,6 @@ export const createDisputeRoom = mutation({
     receiver: v.optional(v.number()),
   },
   handler: async (ctx, { roomId, creator, receiver }) => {
-    // Retrieve the escrow room by roomId
     const room = await ctx.db
       .query("escrowRooms")
       .filter((q) => q.eq(q.field("roomId"), roomId))
@@ -78,7 +28,7 @@ export const createDisputeRoom = mutation({
           q.eq(q.field("creator"), creator),
           q.eq(q.field("escrowRoomId"), room._id),
           // @ts-expect-error Ignore because it should exist before dispute is initiated
-          q.eq(q.field("receiver"), room.receiver?.visitorId)
+          q.eq(q.field("receiver"), room.receiver?.visitorId || receiver)
         )
       )
       .first();
@@ -86,11 +36,11 @@ export const createDisputeRoom = mutation({
     // If no dispute exists, create a new dispute room
     if (!doesDisputeExist) {
       const record = await ctx.db.insert("disputeRooms", {
-        creator: creator,
         disputeStatus: "open",
         escrowRoomId: room._id,
+        creator: creator,
         // @ts-expect-error Ignore because it should exist before dispute is initiated
-        receiver: room.receiver?.visitorId,
+        receiver: room.receiver?.visitorId || receiver,
       });
 
       if (!record) {
@@ -116,6 +66,8 @@ export const listDisputeRooms = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, { visitorId, paginationOpts }) => {
+    console.log("visitorId: ", visitorId);
+
     const disputes = await ctx.db
       .query("disputeRooms")
       .filter((q) =>
