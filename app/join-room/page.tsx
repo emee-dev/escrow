@@ -62,27 +62,43 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
 
   useEffect(
     () => {
-      if (getRoomStatus && getRoomStatus.data?.payment_status === "pending") {
-        setStartEscrow(true);
-      } else if (
-        (getRoomStatus && getRoomStatus.data?.payment_status === "refused") ||
-        (getRoomStatus && getRoomStatus.data?.payment_status === "dispute")
-      ) {
-        const room = getRoomStatus.data!;
+      async function onRoomStatusChange() {
+        if (getRoomStatus && getRoomStatus.data?.payment_status === "pending") {
+          setStartEscrow(true);
+        } else if (
+          getRoomStatus &&
+          getRoomStatus.data?.payment_status === "dispute"
+        ) {
+          const room = getRoomStatus.data!;
 
-        const userType: "creator" | "reciever" =
-          room.creator.visitorId === context.visitorId ? "creator" : "reciever";
+          const userType: "creator" | "reciever" =
+            room.creator.visitorId === context.visitorId
+              ? "creator"
+              : "reciever";
 
-        setDisputeRoomUrl(
-          `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
-        );
+          router.push(
+            `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+          );
+        } else if (
+          getRoomStatus &&
+          getRoomStatus.data?.payment_status === "refused"
+        ) {
+          const room = getRoomStatus.data!;
 
-        router.push(
-          `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
-        );
-      } else {
-        setStartEscrow(false);
+          const userType: "creator" | "reciever" =
+            room.creator.visitorId === context.visitorId
+              ? "creator"
+              : "reciever";
+
+          setDisputeRoomUrl(
+            `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+          );
+        } else {
+          setStartEscrow(false);
+        }
       }
+
+      onRoomStatusChange();
     },
 
     /* eslint-disable react-hooks/exhaustive-deps */
@@ -144,11 +160,8 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
 }
 
 function EscrowTimer(props: EscrowTimerProps) {
-  // const router = useRouter();
-  // const context = useSuperVizContext();
   const [timeLeft, setTimeLeft] = useState(25);
   const [isTimerExpired, setIsTimerExpired] = useState(false);
-  // const createDispute = useMutation(api.dispute.createDisputeRoom);
 
   const refuseToPay = useMutation(api.escrow.refusePayment);
 
@@ -160,7 +173,7 @@ function EscrowTimer(props: EscrowTimerProps) {
       if (props.paymentStatus === "pending") {
         setIsTimerExpired(true);
       } else {
-        setIsTimerExpired(true);
+        setIsTimerExpired(false);
       }
     }
   }, [timeLeft, props]);
@@ -316,7 +329,7 @@ function AcceptEscrow(props: {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="terms">Additional Terms</Label>
+            <Label htmlFor="terms">Escrow Terms</Label>
             <Textarea
               id="terms"
               rows={2}

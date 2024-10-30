@@ -18,7 +18,7 @@ import {
   generateId,
   prepareImagePrompt,
 } from "@/lib/utils";
-import { useRealtime, useSuperviz } from "@superviz/react-sdk";
+import { useRealtime, useSuperviz, useVideo } from "@superviz/react-sdk";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowDown,
@@ -35,6 +35,15 @@ import { v4 as uuidv4 } from "uuid";
 import { notFound } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import {
+  WifiOff,
+  CheckCircle,
+  AlertCircle,
+  AlertTriangle,
+  Slash,
+  RefreshCcw,
+  XCircle,
+} from "lucide-react";
 
 type DisputePayload = {
   message: string;
@@ -65,20 +74,26 @@ type ComponentProps = {
   };
 };
 
+const connectionStatusIcons = {
+  0: <WifiOff className="size-4" />, // NOT_AVAILABLE: Disconnected from audio/video service.
+  1: <CheckCircle className="size-4" />, // GOOD: Good connection quality.
+  2: <AlertCircle className="size-4" />, // BAD: Bad connection quality.
+  3: <AlertTriangle className="size-4" />, // POOR: Poor connection quality.
+  4: <Slash className="size-4" />, // DISCONNECTED: Transmission interrupted.
+  5: <RefreshCcw className="size-4" />, // RECONNECTING: In the process of reconnecting.
+  6: <XCircle className="size-4" />, // LOST_CONNECTION: Complete loss of connection.
+};
+
+function setConnectionStatusIcon(status: number) {
+  return connectionStatusIcons[status as keyof typeof connectionStatusIcons];
+}
+
 export default function DisputeRoom({ searchParams }: ComponentProps) {
   const roomId = searchParams.roomId;
   const groupId = searchParams.groupId;
   const userType = searchParams.userType;
 
   const uploadImageInputRef = useRef<HTMLInputElement>(null);
-  const messages = useQuery(
-    api.store.fetchRoomMessages,
-    roomId && groupId ? { roomId, groupId } : "skip"
-  );
-  const roomInfo = useQuery(
-    api.escrow.getRoomStatus,
-    roomId && groupId ? { groupId, roomId } : "skip"
-  );
 
   const superviz = useSuperviz();
   const context = useSuperVizContext();
@@ -87,6 +102,19 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
   const setMessage = useMutation(api.store.storeMessage);
   const { subscribe, isReady, publish, unsubscribe } = useRealtime("default");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+
+  const doesDisputeExist = useQuery(
+    api.dispute.doesDisputeExistForThisRoom,
+    roomId && groupId ? { groupId, roomId } : "skip"
+  );
+  const messages = useQuery(
+    api.store.fetchRoomMessages,
+    roomId && groupId ? { roomId, groupId } : "skip"
+  );
+  const roomInfo = useQuery(
+    api.escrow.getRoomStatus,
+    roomId && groupId ? { groupId, roomId } : "skip"
+  );
 
   const sendMessageToChatBot = async (payload: SubscriptionPayload) => {
     if (!context.participant) {
@@ -136,26 +164,29 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
         });
       }
 
-      console.log("Sub: ", payload);
+      console.log("Payload: ", payload);
     }
   };
 
   useEffect(
     () => {
       if (roomInfo && roomInfo.data) {
-        const room = roomInfo.data;
+        if (doesDisputeExist && doesDisputeExist.data) {
+          const room = roomInfo.data;
+          const user = userType === "creator" ? room.creator : room.reciever!;
 
-        const user = userType === "creator" ? room.creator : room.reciever!;
-
-        context.setRoomId(room.roomId);
-        context.setGroup({
-          id: `group-${room.roomId}`,
-          name: `group-${room.roomId}`,
-        });
-        context.setParticipant({
-          id: `participant-${user.visitorId}`,
-          name: `participant-${user.username}`,
-        });
+          context.setRoomId(room.roomId);
+          context.setGroup({
+            id: `group-${room.roomId}`,
+            name: `group-${room.roomId}`,
+          });
+          context.setParticipant({
+            id: `participant-${user.visitorId}`,
+            name: `participant-${user.username}`,
+          });
+        }
+      } else {
+        console.log("Could not initialize or Find dispute Room.");
       }
     },
     /* eslint-disable react-hooks/exhaustive-deps */
@@ -176,7 +207,7 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
 
   // Subscribe to dispute messages
   useEffect(() => {
-    if (!isReady || isSubscribed.current) return;
+    if (!isReady || isSubscribed.current || !doesDisputeExist?.data) return;
 
     subscribe("dispute_message", sendMessageToChatBot);
 
@@ -219,7 +250,10 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
             <Bot className="h-6 w-6" />
             <span>AI Chat</span>
           </Link>
-          <div></div>
+          <div>
+            {/* Connection status */}
+            {setConnectionStatusIcon(context.connectionStatus)}
+          </div>
         </div>
 
         <WalletCard />
@@ -337,7 +371,12 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
                   const parentForm = e.currentTarget.closest("form");
 
                   if (parentForm) {
-                    parentForm.submit();
+                    // Trigger a submit event, which will invoke the onSubmit handler
+                    const submitEvent = new Event("submit", {
+                      cancelable: true,
+                      bubbles: true,
+                    });
+                    parentForm.dispatchEvent(submitEvent);
                   }
                 }
               }}
@@ -413,8 +452,8 @@ const ChatHeader = () => (
     <div className="flex-1">
       <div className="flex items-center gap-2">
         <div className="text-sm mt-3">
-          Please provide all the neccessary (bank statement etc) information
-          you.
+          Please provide all the neccessary information (statement, receipts
+          etc).
         </div>
       </div>
     </div>

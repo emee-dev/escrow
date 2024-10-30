@@ -98,6 +98,7 @@ export const storeMessage = mutation({
       .first();
 
     if (!escrowRoom) {
+      console.log("Could not find escrow room");
       return { message: "Could not find escrow room.", data: [] };
     }
 
@@ -107,6 +108,7 @@ export const storeMessage = mutation({
       .first();
 
     if (!disputeRoom) {
+      console.log("Could not find dispute room.");
       return { message: "Could not find dispute room.", data: [] };
     }
 

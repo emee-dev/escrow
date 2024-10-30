@@ -81,16 +81,26 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
       >
         {children}
         <Realtime />
-        <VideoConference
-          participantType="host"
-          offset={{
-            top: -15,
-            right: -8,
-            bottom: 0,
-            left: 0,
-          }}
-          styles={VideoConferenceStyles}
-        />
+
+        {/* Manually enable the video chat */}
+        {/* Could not find a way to do earlier. */}
+        {context.isVideoEnabled && (
+          <VideoConference
+            // devices={{ videoInput: false, audioInput: false, audioOutput: false }}
+            participantType="host"
+            offset={{
+              top: -15,
+              right: -8,
+              bottom: 0,
+              left: 0,
+            }}
+            styles={VideoConferenceStyles}
+            onConnectionStatusChange={(status) =>
+              context.setConnectionStatus(status)
+            }
+          />
+        )}
+
         <WhoIsOnline position="who_is_online_position" />
       </SuperVizRoomProvider>
     </ConvexProvider>

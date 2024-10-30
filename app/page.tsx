@@ -72,7 +72,7 @@ export default function LandingPage() {
       <header className="border-b">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-16">
-            <h1 className="text-xl font-semibold">Escrow Management System</h1>
+            <h1 className="text-xl font-semibold">Escrow System</h1>
             <CreateRoomDialog />
           </div>
         </div>
