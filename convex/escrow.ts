@@ -69,7 +69,6 @@ export const joinEscrowRoom = mutation({
 
 export const listEscrowRooms = query({
   args: {
-    // escrowRoomId: v.id("escrowRooms"),
     visitorId: v.number(),
     paginationOpts: paginationOptsValidator,
   },
@@ -109,7 +108,21 @@ export const getRoomStatus = query({
   },
 });
 
-// Updates room status
+export const getRoomById = query({
+  args: {
+    escrowRoomId: v.string(),
+  },
+  handler: async (ctx, { escrowRoomId }) => {
+    const room = await ctx.db
+      .query("escrowRooms")
+      .filter((q) => q.eq(q.field("_id"), escrowRoomId))
+      .first();
+
+    return { message: "Room details", data: room };
+  },
+});
+
+// To be used by receiever, in order to reject payment.
 export const refusePayment = mutation({
   args: {
     roomId: v.string(),
@@ -154,6 +167,6 @@ export const disputePayment = internalMutation({
       return null;
     }
 
-    const data = await ctx.db.patch(room._id, { payment_status: "dispute" });
+    await ctx.db.patch(room._id, { payment_status: "dispute" });
   },
 });

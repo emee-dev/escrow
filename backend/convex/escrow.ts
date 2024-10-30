@@ -69,7 +69,6 @@ export const joinEscrowRoom = mutation({
 
 export const listEscrowRooms = query({
   args: {
-    // escrowRoomId: v.id("escrowRooms"),
     visitorId: v.number(),
     paginationOpts: paginationOptsValidator,
   },
@@ -106,6 +105,20 @@ export const getRoomStatus = query({
       .first();
 
     return { message: "Room status", data: room };
+  },
+});
+
+export const getRoomById = query({
+  args: {
+    escrowRoomId: v.string(),
+  },
+  handler: async (ctx, { escrowRoomId }) => {
+    const room = await ctx.db
+      .query("escrowRooms")
+      .filter((q) => q.eq(q.field("_id"), escrowRoomId))
+      .first();
+
+    return { message: "Room details", data: room };
   },
 });
 

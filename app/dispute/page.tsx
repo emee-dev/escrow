@@ -4,18 +4,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useSuperVizContext } from "@/context";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { api } from "../../convex/_generated/api";
 import {
   encodeImageToBase64,
   generateId,
@@ -23,11 +20,21 @@ import {
 } from "@/lib/utils";
 import { useRealtime, useSuperviz } from "@superviz/react-sdk";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowDown, ArrowUp, Bot, Paperclip, RefreshCw, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Bot,
+  EllipsisVertical,
+  Paperclip,
+  RefreshCw,
+  X,
+} from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
+import { v4 as uuidv4 } from "uuid";
 import { notFound } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { api } from "../../convex/_generated/api";
 
 type DisputePayload = {
   message: string;
@@ -46,6 +53,7 @@ type SubscriptionPayload = {
 export interface UploadedFile {
   name: string;
   base64: string;
+  index: string;
 }
 
 type ComponentProps = {
@@ -57,12 +65,12 @@ type ComponentProps = {
   };
 };
 
-export default function Component({ searchParams }: ComponentProps) {
+export default function DisputeRoom({ searchParams }: ComponentProps) {
   const roomId = searchParams.roomId;
   const groupId = searchParams.groupId;
   const userType = searchParams.userType;
 
-  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const uploadImageInputRef = useRef<HTMLInputElement>(null);
   const messages = useQuery(
     api.store.fetchRoomMessages,
     roomId && groupId ? { roomId, groupId } : "skip"
@@ -77,7 +85,7 @@ export default function Component({ searchParams }: ComponentProps) {
   const isSubscribed = useRef(false);
   const formRef = useRef<FormEvent<HTMLFormElement>>(null);
   const setMessage = useMutation(api.store.storeMessage);
-  const { subscribe, isReady, publish } = useRealtime("default");
+  const { subscribe, isReady, publish, unsubscribe } = useRealtime("default");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   const sendMessageToChatBot = async (payload: SubscriptionPayload) => {
@@ -132,44 +140,52 @@ export default function Component({ searchParams }: ComponentProps) {
     }
   };
 
-  useEffect(() => {
-    if (roomInfo && roomInfo.data) {
-      const room = roomInfo.data;
+  useEffect(
+    () => {
+      if (roomInfo && roomInfo.data) {
+        const room = roomInfo.data;
 
-      const user = userType === "creator" ? room.creator : room.reciever!;
+        const user = userType === "creator" ? room.creator : room.reciever!;
 
-      context.setRoomId(room.roomId);
-      context.setGroup({
-        id: `group-${room.roomId}`,
-        name: `group-${room.roomId}`,
-      });
-      context.setParticipant({
-        id: `participant-${user.visitorId}`,
-        name: `participant-${user.username}`,
-      });
-    }
-  }, [roomInfo]);
+        context.setRoomId(room.roomId);
+        context.setGroup({
+          id: `group-${room.roomId}`,
+          name: `group-${room.roomId}`,
+        });
+        context.setParticipant({
+          id: `participant-${user.visitorId}`,
+          name: `participant-${user.username}`,
+        });
+      }
+    },
+    /* eslint-disable react-hooks/exhaustive-deps */
+    [roomInfo, userType]
+  );
 
   // To run after we set room details
-  useEffect(() => {
-    if (context.roomId && context.group) {
-      superviz.startRoom();
-    }
-  }, [context]);
+  useEffect(
+    () => {
+      if (context.roomId && context.group) {
+        superviz.startRoom();
+      }
+    },
+
+    /* eslint-disable react-hooks/exhaustive-deps */
+    [context]
+  );
 
   // Subscribe to dispute messages
   useEffect(() => {
     if (!isReady || isSubscribed.current) return;
 
-    // Called multiple times
     subscribe("dispute_message", sendMessageToChatBot);
 
     isSubscribed.current = true;
-    // return () => {
-    //   unsubscribe("dispute_message", (data) => {
-    //     console.log("unsubscribed: ", data);
-    //   });
-    // };
+    return () => {
+      unsubscribe("dispute_message", (data) => {
+        console.log("unsubscribed: ", data);
+      });
+    };
   }, [isReady]);
 
   if (!roomId || !groupId) {
@@ -184,7 +200,7 @@ export default function Component({ searchParams }: ComponentProps) {
       const newFiles = await Promise.all(
         Array.from(files).map(async (file) => {
           const base64 = await encodeImageToBase64(file);
-          return { name: file.name, base64 };
+          return { name: file.name, base64, index: uuidv4() };
         })
       );
       setUploadedFiles((prevFiles) => [...prevFiles, ...newFiles]);
@@ -203,42 +219,25 @@ export default function Component({ searchParams }: ComponentProps) {
             <Bot className="h-6 w-6" />
             <span>AI Chat</span>
           </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Image
-                  src="/placeholder.svg"
-                  width="32"
-                  height="32"
-                  className="rounded-full"
-                  alt="Avatar"
-                  style={{ aspectRatio: "32/32", objectFit: "cover" }}
-                />
-                <span className="sr-only">Toggle user menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>Support</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>Logout</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div></div>
         </div>
 
         <WalletCard />
+
+        <div className="w-full flex mt-5">
+          {/* Who is online */}
+          <div id="who_is_online_position"></div>
+        </div>
       </div>
       <div className="flex flex-col">
         <ChatHeader />
-        <div className="flex-1 overflow-auto p-4 sm:p-6">
+        <div className="flex-1 overflow-auto p-2">
           {messages && messages.data.length > 0 ? (
-            <ScrollArea className="flex-1">
+            <ScrollArea className="h-[600px] w-full border px-7">
               <ChatBody messages={messages.data} />
             </ScrollArea>
           ) : (
-            <div className="flex w-full justify-center">
+            <div className="flex w-full pt-28 justify-center">
               <span>There are no messages</span>
             </div>
           )}
@@ -247,14 +246,41 @@ export default function Component({ searchParams }: ComponentProps) {
             multiple
             id="picture"
             type="file"
-            ref={uploadInputRef}
+            ref={uploadImageInputRef}
             accept="image/*"
             onChange={handleFileChange}
             className="hidden cursor-none invisible"
-            placeholder="Click here"
           />
         </div>
         <div className="sticky bottom-0 z-10 shadow-md bg-background p-4 sm:p-6">
+          {uploadedFiles && uploadedFiles.length > 0 && (
+            <div className="flex flex-row gap-2 absolute bottom-20 px-4 w-full md:w-[500px] md:px-0">
+              {uploadedFiles.map((file) => (
+                <div key={file.index} className="relative group">
+                  <Image
+                    src={file.base64}
+                    alt={file.name}
+                    className="rounded-md w-16"
+                    width={90}
+                    height={90}
+                  />
+
+                  <div
+                    onClick={() => {
+                      const updatedFiles = uploadedFiles.filter(
+                        (item) => item.index !== file.index
+                      );
+                      setUploadedFiles(updatedFiles);
+                    }}
+                    className="hidden group-hover:flex items-center justify-center absolute top-1/2 right-2.5 -translate-y-1/2 bg-gray-800 text-white rounded-full w-6 h-6 text-xs cursor-pointer"
+                  >
+                    X
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -271,25 +297,28 @@ export default function Component({ searchParams }: ComponentProps) {
 
               const input = form.get("message") as string;
 
+              if (!input) {
+                console.log("Prompt is empty.");
+                return;
+              }
+
               publish("dispute_message", {
                 message: input,
                 participantId: context.participant.id,
                 participantName: context.participant.name,
               } as DisputePayload);
-
-              console.log("Published");
             }}
             className="relative"
           >
             <Button
-              type="submit"
               size="icon"
+              type="button"
               variant="outline"
               className="absolute w-8 h-8 top-3 left-3"
               onClick={() => {
-                const uploadInput = uploadInputRef.current;
-                if (uploadInput) {
-                  uploadInput.click();
+                const uploadImageInput = uploadImageInputRef.current;
+                if (uploadImageInput) {
+                  uploadImageInput.click();
                 }
               }}
             >
@@ -383,21 +412,26 @@ const ChatHeader = () => (
   <div className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:h-16 sm:px-6">
     <div className="flex-1">
       <div className="flex items-center gap-2">
-        <Avatar className="w-10 h-10 border">
-          <AvatarImage src="/placeholder-user.jpg" alt="User" />
-          <AvatarFallback>JD</AvatarFallback>
-        </Avatar>
-        <div>
-          <div className="font-medium">John Doe</div>
-          {/* <div className="text-sm text-muted-foreground">Process..</div> */}
+        <div className="text-sm mt-3">
+          Please provide all the neccessary (bank statement etc) information
+          you.
         </div>
       </div>
     </div>
     <div className="flex items-center gap-2">
-      <Button variant="ghost" size="icon">
-        <X className="h-5 w-5" />
-        <span className="sr-only">Add emoji</span>
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <EllipsisVertical className="h-5 w-5" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>End dispute</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   </div>
 );
@@ -469,24 +503,9 @@ const ChatBody = ({ messages }: ChatBodyProps) => {
 const LeftAlignMessage = ({ content }: { content: string }) => {
   return (
     <div className="flex items-start gap-4">
-      <Avatar className="w-10 h-10 border">
-        <AvatarImage src="/placeholder-user.jpg" alt="User" />
-        <AvatarFallback>JD</AvatarFallback>
-      </Avatar>
       <div className="grid gap-1 rounded-lg bg-muted p-3">
-        <div className="font-medium">John Doe</div>
+        <div className="font-medium">AI</div>
         <div className="text-sm leading-relaxed">{stripReply(content)}</div>
-        {/* {upload && (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon">
-              <File className="h-5 w-5" />
-              <span className="sr-only">View document</span>
-            </Button>
-            <div className="text-sm text-muted-foreground">
-              Sales Report Q4 2023.pdf
-            </div>
-          </div>
-        )} */}
       </div>
     </div>
   );
@@ -499,10 +518,6 @@ const RightAlignMessage = ({ content }: { content: string }) => {
         <div className="font-medium">You</div>
         <div className="text-sm leading-relaxed">{stripSent(content)}</div>
       </div>
-      <Avatar className="w-10 h-10 border">
-        <AvatarImage src="/placeholder-user.jpg" alt="User" />
-        <AvatarFallback>YO</AvatarFallback>
-      </Avatar>
     </div>
   );
 };
@@ -527,11 +542,12 @@ const RightAlignMessageWithImages = ({
       <div className="flex flex-col gap-2">
         {/* Loop through each image in content and render */}
         {content.map((imageContent, index) => (
-          <img
+          <Image
             key={index}
             src={imageContent.imageUrl.url}
             alt={imageContent.imageUrl.detail || "Image"}
             className="rounded-lg shadow-md"
+            priority={false}
           />
         ))}
       </div>

@@ -13,10 +13,11 @@ import { api } from "../../convex/_generated/api";
 import useCopyToClipboard from "@/hooks/use-clipboard";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "convex/react";
-import { AlertTriangle, Copy, Hourglass, X } from "lucide-react";
+import { AlertTriangle, CircleCheck, Copy, Hourglass, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { PaymentConfirmed } from "@/components/ui/dispute";
 
 type EscrowTimerProps = {
   roomId: string;
@@ -34,7 +35,6 @@ type WaitingRoomProps = {
 export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
   const roomId = searchParams.roomId;
   const groupId = searchParams.groupId;
-  const router = useRouter();
   const context = useSuperVizContext();
   const [startEscrow, setStartEscrow] = useState(false);
   const [disputeRoomUrl, setDisputeRoomUrl] = useState("");
@@ -62,13 +62,16 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
     } else {
       setStartEscrow(false);
     }
-  }, [getRoomStatus]);
+  }, [getRoomStatus, context.visitorId]);
 
   return (
     <main className="w-screen h-screen">
       <EscroNavbar />
       <div className=" h-full flex flex-col pt-10 items-center bg-gradient-to-r from-blue-100 to-purple-100">
-        {/* {view === "payment_complete" && <PaymentConfirmed />} */}
+        {/* {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
+          <PaymentConfirmed />
+        )} */}
+
         {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
           <EscrowTimer
             roomId={roomId}
@@ -79,7 +82,7 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
           />
         )}
 
-        {getRoomStatus && getRoomStatus.data?.payment_status === "refused" && (
+        {/* {getRoomStatus && getRoomStatus.data?.payment_status === "refused" && (
           <Card>
             <CardHeader>Third party refused to pay.</CardHeader>
             <CardContent className="justify-center flex flex-col">
@@ -88,7 +91,7 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
               </Link>
             </CardContent>
           </Card>
-        )}
+        )} */}
 
         {getRoomStatus && getRoomStatus.data?.payment_status === "dispute" && (
           <Card>
@@ -103,58 +106,14 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
 
         {!getRoomStatus ||
           (getRoomStatus.data?.payment_status === "default" && (
-            <div>There is nothing to show for now.</div>
+            <div>
+              There is nothing to show for now. Waiting for user to accept.
+            </div>
           ))}
       </div>
     </main>
   );
 }
-
-// function PaymentConfirmed() {
-//   return (
-//     <Card className="flex flex-col items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
-//       <div className="mx-auto max-w-md space-y-6 text-center">
-//         <div className="flex items-center justify-center">
-//           <CircleCheck className="h-16 w-16 text-green-500" />
-//         </div>
-//         <div className="space-y-2">
-//           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-//             Payment Confirmed
-//           </h1>
-//           <p className="text-muted-foreground">
-//             Your payment has been successfully processed.
-//           </p>
-//         </div>
-//         <Card>
-//           <CardContent className="grid gap-4">
-//             <div className="flex items-center justify-between">
-//               <div className="text-muted-foreground">Amount</div>
-//               <div className="font-medium">$499.99</div>
-//             </div>
-//             <div className="flex items-center justify-between">
-//               <div className="text-muted-foreground">Recipient</div>
-//               <div className="font-medium">Acme Inc.</div>
-//             </div>
-//             <div className="flex items-center justify-between">
-//               <div className="text-muted-foreground">Transaction ID</div>
-//               <div className="font-medium">12345678</div>
-//             </div>
-//             <div className="flex items-center justify-between">
-//               <div className="text-muted-foreground">Payment Method</div>
-//               <div className="font-medium">Crypto (USDT)</div>
-//             </div>
-//           </CardContent>
-//           <CardFooter>
-//             <Button className="w-full">
-//               <Download className="h-4 w-4 mr-2" />
-//               Download Receipt
-//             </Button>
-//           </CardFooter>
-//         </Card>
-//       </div>
-//     </Card>
-//   );
-// }
 
 function EscrowTimer(props: EscrowTimerProps) {
   const router = useRouter();
@@ -177,7 +136,7 @@ function EscrowTimer(props: EscrowTimerProps) {
 
       // Only the creator can initiate disputes
       router.push(
-        `/dispute?roomId=${props.roomId}&groupId=${props.groupId}&userType=${"creator"}`
+        `/dispute?userType=${"creator"}roomId=${props.roomId}&groupId=${props.groupId}&userType=${"creator"}`
       );
     } catch (error: any) {
       console.error(error);

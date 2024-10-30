@@ -21,11 +21,13 @@ export type StoreResponse = {
   data: Store[];
   message: string;
 };
+
 export type SystemMessage = {
   id: string;
   role: Store["role"];
   content: string;
 };
+
 const systemMessage = `
   You are an AI dispute bot. You specifically help resolve escrow disputes between two people (participants).
   A participant is identified by the hashtag in their message.
@@ -258,6 +260,27 @@ export const webhookCallback = internalAction({
   handler: async (_, { groupId, roomId }) => {
     try {
       const req = await fetch(`${BACKEND_AI_WEBHOOK}/sse/${roomId}/${groupId}`);
+
+      if (!req.ok) {
+        console.log("Bad Request: ", await req.text());
+
+        return;
+      }
+
+      const res = await req.json();
+
+      console.log("Response: ", res);
+    } catch (error: any) {
+      console.error("AI Webhook Fetch Error:", error);
+    }
+  },
+});
+
+export const serverHealthCheck = internalAction({
+  args: {},
+  handler: async (_, args) => {
+    try {
+      const req = await fetch(`${BACKEND_AI_WEBHOOK}`);
 
       if (!req.ok) {
         console.log("Bad Request: ", await req.text());

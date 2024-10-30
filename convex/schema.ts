@@ -1,16 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-type TempStore = {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
-};
-
-type LastMessageByAI = {
-  role: "assistant";
-  prefix: true;
-};
-
 export default defineSchema(
   {
     escrowRooms: defineTable({

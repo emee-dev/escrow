@@ -1,12 +1,14 @@
 "use client";
 
+import { VideoConferenceStyles } from "@/consts";
 import { Entity, useSuperVizContext } from "@/context";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
 import {
   Realtime,
   SuperVizRoomProvider,
+  VideoConference,
   WhoIsOnline,
 } from "@superviz/react-sdk";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { useEffect } from "react";
 import { hasWindow } from "std-env";
 
@@ -37,13 +39,28 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     async function initialRun() {
       if (hasWindow) {
-        const { ClientJS } = await import("clientjs");
-        const clientjs = new ClientJS();
-        const visitorId = clientjs.getFingerprint();
+        try {
+          const storedVisitorId = localStorage.getItem("visitorId");
+          if (storedVisitorId) {
+            context.setVisitorId(Number(storedVisitorId));
+            return;
+          }
 
-        console.log("visitorId: ", visitorId);
-        context.setVisitorId(visitorId);
-        
+          // Attempt to import ClientJS, generate fingerprint, and store it if not existing
+          const { ClientJS } = await import("clientjs");
+          const clientjs = new ClientJS();
+          const visitorId = clientjs.getFingerprint();
+
+          console.log("Generated visitorId: ", visitorId);
+
+          // Attempt to store the fingerprint in local storage
+          localStorage.setItem("visitorId", String(visitorId));
+
+          // Set the fingerprint in context
+          context.setVisitorId(visitorId);
+        } catch (error) {
+          console.error("Error in obtaining or setting visitor ID:", error);
+        }
       }
     }
 
@@ -64,7 +81,17 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
       >
         {children}
         <Realtime />
-        {/* <WhoIsOnline position="who_is_online_position" /> */}
+        <VideoConference
+          participantType="host"
+          offset={{
+            top: -15,
+            right: -8,
+            bottom: 0,
+            left: 0,
+          }}
+          styles={VideoConferenceStyles}
+        />
+        <WhoIsOnline position="who_is_online_position" />
       </SuperVizRoomProvider>
     </ConvexProvider>
   );

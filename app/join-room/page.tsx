@@ -17,18 +17,27 @@ import { api } from "../../convex/_generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
-import { AlertTriangle, Hourglass, X } from "lucide-react";
+import { AlertTriangle, Hourglass, Link, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { PaymentConfirmed } from "@/components/ui/dispute";
 
 type ViewTypes = "accept_escrow" | "start_timer" | "payment_complete";
 
+// type EscrowTimerProps = {
+//   startEscrow: boolean;
+//   roomId: string;
+//   groupId: string;
+//   initialTimeInSeconds?: number;
+// };
+
 type EscrowTimerProps = {
-  startEscrow: boolean;
   roomId: string;
   groupId: string;
+  startEscrow: boolean;
+  paymentStatus: "dispute" | "pending" | "default" | "refused";
   initialTimeInSeconds?: number;
 };
 
@@ -44,40 +53,89 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
 
   const context = useSuperVizContext();
   const [startEscrow, setStartEscrow] = useState(false);
+  const [disputeRoomUrl, setDisputeRoomUrl] = useState("");
 
   const getRoomStatus = useQuery(
     api.escrow.getRoomStatus,
     groupId && roomId ? { groupId, roomId } : "skip"
   );
 
-  //   const [view, setView] = useState<"accept_escrow" | "start_timer">(
-  //     "start_timer"
-  //   );
+  useEffect(
+    () => {
+      if (getRoomStatus && getRoomStatus.data?.payment_status === "pending") {
+        setStartEscrow(true);
+      } else if (
+        (getRoomStatus && getRoomStatus.data?.payment_status === "refused") ||
+        (getRoomStatus && getRoomStatus.data?.payment_status === "dispute")
+      ) {
+        const room = getRoomStatus.data!;
+
+        const userType: "creator" | "reciever" =
+          room.creator.visitorId === context.visitorId ? "creator" : "reciever";
+
+        setDisputeRoomUrl(
+          `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+        );
+
+        router.push(
+          `/dispute?userType=${userType}&roomId=${room.roomId}&groupId=${room.groupId}`
+        );
+      } else {
+        setStartEscrow(false);
+      }
+    },
+
+    /* eslint-disable react-hooks/exhaustive-deps */
+    [getRoomStatus, context.visitorId]
+  );
 
   return (
     <main className="w-screen h-screen">
       <EscroNavbar />
       <div className=" h-full flex flex-col pt-10 items-center bg-gradient-to-r from-blue-100 to-purple-100">
-        {/* {view === "payment_complete" && <PaymentConfirmed />} */}
+        {/* {getRoomStatus && getRoomStatus.data?.payment_status === "" && (
+          <PaymentConfirmed />
+        )} */}
 
-        {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
-          <StartEscrow
+        {/* {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
+          <EscrowTimer
             roomId={roomId}
             groupId={groupId}
             initialTimeInSeconds={25}
             startEscrow={startEscrow}
           />
+        )} */}
+
+        {getRoomStatus && getRoomStatus.data?.payment_status === "pending" && (
+          <EscrowTimer
+            roomId={roomId}
+            groupId={groupId}
+            startEscrow={startEscrow}
+            paymentStatus={getRoomStatus.data?.payment_status}
+            initialTimeInSeconds={25}
+          />
+        )}
+
+        {getRoomStatus && getRoomStatus.data?.payment_status === "dispute" && (
+          <Card>
+            <CardHeader>Room has been suspended, goto dispute chat.</CardHeader>
+            <CardContent className="justify-center flex flex-col">
+              <Link href={disputeRoomUrl} className="w-full">
+                <Button className="w-full">Go to dispute</Button>
+              </Link>
+            </CardContent>
+          </Card>
         )}
 
         {getRoomStatus &&
           getRoomStatus.data &&
           getRoomStatus.data.payment_status === "default" && (
             <AcceptEscrow
-              amount={getRoomStatus.data.amount}
-              asset={getRoomStatus.data.asset}
-              terms={getRoomStatus.data.terms}
               roomId={roomId}
               groupId={groupId}
+              terms={getRoomStatus.data.terms}
+              asset={getRoomStatus.data.asset}
+              amount={getRoomStatus.data.amount}
             />
           )}
       </div>
@@ -85,29 +143,27 @@ export default function WaitingRoom({ searchParams }: WaitingRoomProps) {
   );
 }
 
-function StartEscrow({
-  startEscrow,
-  groupId,
-  roomId,
-  initialTimeInSeconds = 15,
-}: EscrowTimerProps) {
-  const [timeLeft, setTimeLeft] = useState(initialTimeInSeconds);
+function EscrowTimer(props: EscrowTimerProps) {
+  // const router = useRouter();
+  // const context = useSuperVizContext();
+  const [timeLeft, setTimeLeft] = useState(25);
   const [isTimerExpired, setIsTimerExpired] = useState(false);
+  // const createDispute = useMutation(api.dispute.createDisputeRoom);
 
-  const refusePayment = useMutation(api.escrow.refusePayment);
+  const refuseToPay = useMutation(api.escrow.refusePayment);
 
   useEffect(() => {
-    if (timeLeft > 0) {
+    if (timeLeft > 0 && props.startEscrow) {
       const timerId = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timerId);
     } else {
-      if (startEscrow) {
-        setIsTimerExpired(false);
+      if (props.paymentStatus === "pending") {
+        setIsTimerExpired(true);
       } else {
         setIsTimerExpired(true);
       }
     }
-  }, [timeLeft, startEscrow]);
+  }, [timeLeft, props]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -139,9 +195,10 @@ function StartEscrow({
       </CardContent>
       <CardFooter className="flex justify-center">
         <Button
-          onClick={async () => {
-            refusePayment({ groupId, roomId });
-          }}
+          // onClick={async () => handleCreateDispute()}
+          onClick={async () =>
+            refuseToPay({ groupId: props.groupId, roomId: props.roomId })
+          }
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
         >
           Refuse to pay
@@ -180,13 +237,18 @@ function AcceptEscrow(props: {
     },
   });
 
-  useEffect(() => {
-    if (props) {
-      form.setValue("terms", props.terms);
-      form.setValue("asset_to_recieve", props.asset);
-      form.setValue("amount_to_recieve", props.amount);
-    }
-  }, [props]);
+  useEffect(
+    () => {
+      if (props) {
+        form.setValue("terms", props.terms);
+        form.setValue("asset_to_recieve", props.asset);
+        form.setValue("amount_to_recieve", props.amount);
+      }
+    },
+
+    /* eslint-disable react-hooks/exhaustive-deps */
+    [props]
+  );
 
   async function onSubmit(values: z.infer<typeof joinEscrowRoomSchema>) {
     if (!props.roomId || !props.groupId || !context.visitorId) {

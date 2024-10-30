@@ -25,14 +25,17 @@ import { useSuperVizContext } from "@/context";
 import { generateId } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "../convex/_generated/api";
-import { useMutation, usePaginatedQuery } from "convex/react";
+import { useConvex, useMutation, usePaginatedQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Link from "next/link";
+import { useEffect } from "react";
 
 export default function LandingPage() {
+  const router = useRouter();
   const context = useSuperVizContext();
+  const convex = useConvex();
 
   const {
     results: escrows,
@@ -125,19 +128,46 @@ export default function LandingPage() {
               </TableHeader>
               <TableBody>
                 {disputes &&
-                  disputes.map((dispute) => (
-                    <TableRow key={dispute._id}>
-                      <TableCell>{dispute._id}</TableCell>
-                      <TableCell>{dispute.disputeStatus}</TableCell>
-                      <TableCell>{dispute.escrowRoomId}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          {/* {dispute.action} */}
-                          BTN
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  disputes.map((dispute) => {
+                    return (
+                      <TableRow key={dispute._id}>
+                        <TableCell>{dispute._id}</TableCell>
+                        <TableCell>{dispute.disputeStatus}</TableCell>
+                        <TableCell>{dispute.escrowRoomId}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const details = await convex.query(
+                                api.escrow.getRoomById,
+                                { escrowRoomId: dispute.escrowRoomId }
+                              );
+
+                              if (!details.data) {
+                                console.log(
+                                  "Unable to redirect to dispute chat."
+                                );
+                                return;
+                              }
+
+                              const userType: "creator" | "reciever" =
+                                details.data.creator.visitorId ===
+                                context.visitorId
+                                  ? "creator"
+                                  : "reciever";
+
+                              router.push(
+                                `/dispute?userType=${userType}&roomId=${details.data.roomId}&groupId=${details.data.groupId}`
+                              );
+                            }}
+                          >
+                            Goto Chat
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
           </TabsContent>
