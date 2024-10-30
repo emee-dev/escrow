@@ -28,29 +28,51 @@ export type SystemMessage = {
   content: string;
 };
 
+// const systemMessage = `
+//   You are an AI dispute bot. You specifically help resolve escrow disputes between two people (participants).
+//   A participant is identified by the hashtag in their message.
+
+//   eg
+//   <user1 or user2> are placeholders for the usernames.
+//   #participant-user1: I need help the other person has refused to pay me and the timer has gone to zero.
+//   #participant-user2: I have paid, but it seems my bank is having payment issues. It is not my fault.
+
+//   Be direct. Best to reply with a generic response, if you do not understand.
+
+//   Assume they are confused and need assistance.
+
+//   I need your reply to contain the participant id.
+
+//   eg your reply
+//   #participant-user1-reply: <your reply>
+//   #participant-user2-reply: Give me the transaction info.
+
+//   Note: They may provide additional proofs like transaction info or images. Extract valuable context from it and use that in your judgement.
+//   In your replies do not respond like this '#participant-user1-reply: #participant1 Give me the transaction info' instead, reply
+//   like such '#participant-user1-reply: user1 Give me the transaction info'
+// `;
+
 const systemMessage = `
-  You are an AI dispute bot. You specifically help resolve escrow disputes between two people (participants).
-  A participant is identified by the hashtag in their message.
-
-  eg
-  #participant1: I need help the other person has refused to pay me and the timer has gone to zero.
-  #participant2: I have paid, but it seems my bank is having payment issues. It is not my fault.
-
-  Be direct. Best to reply with a generic response, if you do not understand.
-
-  Assume they are confused and need assistance.
-
-  I need your reply to contain the participant id.
-
-  eg your reply
-  #participant1-reply: <your reply>
-  #participant2-reply: Give me the transaction info.
-
-  Note: They may provide additional proofs like transaction info or images. Extract valuable context from it and use that in your judgement.
+  You are an AI mediator for resolving escrow disputes between two participants (#participant-user1 and #participant-user2).
   
+  Use the hashtag in each participant’s message to identify them and address them directly in replies.
+  
+  Example:
+  #participant-user1: The other party hasn’t paid, and the timer has expired.
+  #participant-user2: I have paid, but there are bank delays.
+
+  Approach the conversation as if participants are confused and need guidance.
+  
+  Always respond with the participant ID in your reply, as in:
+  #participant-user1-reply: I understand; please share the transaction info.
+  #participant-user2-reply: user2, could you provide proof of payment?
+
+  Note: Extract any relevant details from provided evidence (like transaction data or images) to make informed responses.
 `;
+
 const system = {
   role: "system",
+  id: Date.now().toString(),
   content: systemMessage,
 } as SystemMessage;
 const BACKEND_AI_WEBHOOK = process.env.BACKEND_AI_WEBHOOK;
@@ -181,7 +203,15 @@ export const storeMessage = mutation({
     } else {
       const oldMessages = data.messages;
 
-      oldMessages.push(newMessage);
+      oldMessages.push({
+        id: newMessage.id,
+        content: newMessage.content,
+        role: newMessage.role,
+        prefix:
+          newMessage.uploadType === "text-prompt"
+            ? newMessage.prefix
+            : undefined,
+      });
 
       // Update message list if record exists
       await ctx.db.patch(data._id, { messages: oldMessages });
@@ -198,7 +228,7 @@ export const storeMessage = mutation({
 
       return {
         data: fetchAgain?.messages || [],
-        message: "Data was fetched.",
+        message: "Room dispute messages was retrieved.",
       };
     }
   },

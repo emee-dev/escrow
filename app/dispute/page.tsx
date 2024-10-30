@@ -27,13 +27,14 @@ import {
   EllipsisVertical,
   Paperclip,
   RefreshCw,
+  Router,
   X,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { v4 as uuidv4 } from "uuid";
-import { notFound } from "next/navigation";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { notFound, useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import {
   WifiOff,
@@ -44,6 +45,7 @@ import {
   RefreshCcw,
   XCircle,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 type DisputePayload = {
   message: string;
@@ -93,8 +95,11 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
   const groupId = searchParams.groupId;
   const userType = searchParams.userType;
 
+  const { toast } = useToast();
   const uploadImageInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
+  const router = useRouter();
   const superviz = useSuperviz();
   const context = useSuperVizContext();
   const isSubscribed = useRef(false);
@@ -116,93 +121,105 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
     roomId && groupId ? { groupId, roomId } : "skip"
   );
 
-  const sendMessageToChatBot = async (payload: SubscriptionPayload) => {
-    if (!context.participant) {
-      console.log("User is not defined.");
-      return;
-    }
-
-    // Make sure the current user's message is sent, if not it will also send the
-    // other persons subscribed message. It helps avoid duplicating messages.
-    if (payload.data.participantId === context.participant.id) {
-      const userPrompt = payload.data.message;
-
-      if (!userPrompt) {
-        console.log("User did not provide any prompt.");
+  const sendMessageToChatBot = useCallback(
+    async (payload: SubscriptionPayload) => {
+      if (!context.participant) {
+        console.log("User is not defined.");
         return;
       }
 
-      // Upload images with detail prompt
-      if (uploadedFiles.length > 0) {
-        const prompt = `#${context.participant.name}: ${userPrompt}`;
+      // Make sure the current user's message is sent, if not it will also send the
+      // other persons subscribed message. It helps avoid duplicating messages.
+      if (payload.data.participantId === context.participant.id) {
+        const userPrompt = payload.data.message;
 
-        const data = await prepareImagePrompt(prompt, uploadedFiles);
+        if (!userPrompt) {
+          console.log("User did not provide any prompt.");
+          return;
+        }
 
-        const newData = await setMessage({
-          groupId,
-          roomId,
-          newMessage: {
-            role: "user",
-            content: [data.content],
-            id: generateId(),
-            uploadType: "image-prompt",
-          },
-        });
+        console.log("uploadedFiles", uploadedFiles);
 
-        // reset the file list
+        // Upload images with detail prompt
+        if (uploadedFiles && uploadedFiles.length > 0) {
+          const prompt = `#${context.participant.name}: ${userPrompt}`;
+          const data = await prepareImagePrompt(prompt, uploadedFiles);
+
+          console.log("Image prompt", data);
+
+          const newData = await setMessage({
+            groupId,
+            roomId,
+            newMessage: {
+              role: "user",
+              content: [data.content],
+              id: generateId(),
+              uploadType: "image-prompt",
+            },
+          });
+
+          // reset the file list
+        } else {
+          const newData = await setMessage({
+            groupId,
+            roomId,
+            newMessage: {
+              role: "user",
+              id: generateId(),
+              content: `#${context.participant.name}: ${userPrompt}`,
+              uploadType: "text-prompt",
+            },
+          });
+        }
+
         setUploadedFiles([]);
-      } else {
-        const newData = await setMessage({
-          groupId,
-          roomId,
-          newMessage: {
-            role: "user",
-            id: generateId(),
-            content: `#${context.participant.name}: ${userPrompt}`,
-            uploadType: "text-prompt",
-          },
-        });
+        console.log("Payload: ", payload);
       }
-
-      console.log("Payload: ", payload);
-    }
-  };
+    },
+    [context, uploadedFiles]
+  );
 
   useEffect(
     () => {
-      if (roomInfo && roomInfo.data) {
-        if (doesDisputeExist && doesDisputeExist.data) {
-          const room = roomInfo.data;
-          const user = userType === "creator" ? room.creator : room.reciever!;
+      if (doesDisputeExist && !doesDisputeExist.data) {
+        router.push("/");
+      } else if (
+        doesDisputeExist &&
+        doesDisputeExist.data &&
+        roomInfo &&
+        roomInfo.data
+      ) {
+        const room = roomInfo.data;
+        const user = userType === "creator" ? room.creator : room.reciever!;
 
-          context.setRoomId(room.roomId);
-          context.setGroup({
-            id: `group-${room.roomId}`,
-            name: `group-${room.roomId}`,
-          });
-          context.setParticipant({
-            id: `participant-${user.visitorId}`,
-            name: `participant-${user.username}`,
-          });
-        }
-      } else {
-        console.log("Could not initialize or Find dispute Room.");
+        context.setRoomId(room.roomId);
+        context.setGroup({
+          id: `group-${room.roomId}`,
+          name: `group-${room.roomId}`,
+        });
+        context.setParticipant({
+          id: `participant-${user.visitorId}`,
+          name: `participant-${user.username}`,
+        });
+
+        console.log("Room details was found.");
       }
     },
     /* eslint-disable react-hooks/exhaustive-deps */
-    [roomInfo, userType]
+    [roomInfo, userType, doesDisputeExist]
   );
 
   // To run after we set room details
   useEffect(
     () => {
-      if (context.roomId && context.group) {
+      if (context.roomId && context.group && doesDisputeExist?.data) {
         superviz.startRoom();
+        console.log("Room has started.");
       }
     },
 
     /* eslint-disable react-hooks/exhaustive-deps */
-    [context]
+    [context, doesDisputeExist]
   );
 
   // Subscribe to dispute messages
@@ -217,7 +234,7 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
         console.log("unsubscribed: ", data);
       });
     };
-  }, [isReady]);
+  }, [isReady, doesDisputeExist]);
 
   if (!roomId || !groupId) {
     return notFound();
@@ -265,9 +282,9 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
       </div>
       <div className="flex flex-col">
         <ChatHeader />
-        <div className="flex-1 overflow-auto p-2">
+        <div className="flex-1 p-2">
           {messages && messages.data.length > 0 ? (
-            <ScrollArea className="h-[600px] w-full border px-7">
+            <ScrollArea className="h-[600px] w-full border px-7 pb-16">
               <ChatBody messages={messages.data} />
             </ScrollArea>
           ) : (
@@ -286,7 +303,7 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
             className="hidden cursor-none invisible"
           />
         </div>
-        <div className="sticky bottom-0 z-10 shadow-md bg-background p-4 sm:p-6">
+        <div className="sticky bottom-0 z-10 shadow-md bg-background p-4">
           {uploadedFiles && uploadedFiles.length > 0 && (
             <div className="flex flex-row gap-2 absolute bottom-20 px-4 w-full md:w-[500px] md:px-0">
               {uploadedFiles.map((file) => (
@@ -341,6 +358,12 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
                 participantId: context.participant.id,
                 participantName: context.participant.name,
               } as DisputePayload);
+
+              const textArea = textAreaRef.current;
+
+              if (textArea) {
+                textArea.value = "";
+              }
             }}
             className="relative"
           >
@@ -364,6 +387,7 @@ export default function DisputeRoom({ searchParams }: ComponentProps) {
               name="message"
               id="message"
               rows={1}
+              ref={textAreaRef}
               onKeyDown={(e) => {
                 if (e.keyCode === 13 && e.shiftKey == false) {
                   e.preventDefault();
